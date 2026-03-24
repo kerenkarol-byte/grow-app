@@ -65,12 +65,12 @@ const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
 const CACHE_KEYS = {
-  books:         "grow-books-v6",
-  podcasts:      "grow-podcasts-v6",
-  events:        "grow-events-v6",
-  videos:        "grow-videos-v6",
-  spotifyShows:  "grow-spotify-shows-v6",
-  spotifyToken:  "grow-spotify-token-v6",
+  books:         "grow-books-v7",
+  podcasts:      "grow-podcasts-v7",
+  events:        "grow-events-v7",
+  videos:        "grow-videos-v7",
+  spotifyShows:  "grow-spotify-shows-v7",
+  spotifyToken:  "grow-spotify-token-v7",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -482,12 +482,14 @@ function useSpotifyPodcasts() {
 //   GET https://www.eventbriteapi.com/v3/events/search/
 //   Authorization: Bearer {token}
 const EVENTS_QUERIES = [
-  "personal growth mindfulness retreat",
-  "stress burnout wellness workshop",
-  "relationships communication workshop",
-  "career leadership coaching workshop",
-  "productivity habits workshop",
-  "financial wellness money workshop",
+  { q: "personal growth mindfulness retreat",    hint: "retreat"  },
+  { q: "yoga wellness retreat",                  hint: "retreat"  },
+  { q: "stress burnout wellness workshop",       hint: "workshop" },
+  { q: "relationships communication workshop",   hint: "workshop" },
+  { q: "career leadership coaching workshop",    hint: "workshop" },
+  { q: "productivity habits workshop",           hint: "workshop" },
+  { q: "financial wellness money workshop",      hint: "workshop" },
+  { q: "personal development seminar",           hint: "workshop" },
 ];
 
 function mapEventCategory(text) {
@@ -557,7 +559,7 @@ function mapEventMethod(text) {
   return "coaching";
 }
 
-function eventbriteToItem(ev) {
+function eventbriteToItem(ev, hint = "event") {
   const name = ev.name?.text || "";
   const desc = ev.description?.text || "";
   const text = `${name} ${desc}`;
@@ -580,9 +582,9 @@ function eventbriteToItem(ev) {
   const priceDisplay = ev.ticket_availability?.minimum_ticket_price?.display || null;
 
   const t = text.toLowerCase();
-  const evType = /\bretreat\b/.test(t) ? "retreat"
-               : /\bworkshop\b/.test(t) ? "workshop"
-               : "event";
+  const evType = /\bretreat\b|\bgetaway\b|\bimmersion\b/.test(t) ? "retreat"
+               : /\bworkshop\b|\bmasterclass\b|\bseminar\b|\bintensive\b|\btraining\b/.test(t) ? "workshop"
+               : hint;
 
   return {
     id:          `eb-${ev.id}`,
@@ -625,7 +627,7 @@ function useEvents() {
     const now = new Date().toISOString();
 
     Promise.all(
-      EVENTS_QUERIES.map((q) =>
+      EVENTS_QUERIES.map(({ q, hint }) =>
         fetch(
           `https://www.eventbriteapi.com/v3/events/search/` +
           `?q=${encodeURIComponent(q)}` +
@@ -636,17 +638,18 @@ function useEvents() {
           { headers: { Authorization: `Bearer ${token}` } }
         )
           .then((r) => r.json())
-          .catch(() => ({ events: [] }))
+          .then((data) => ({ data, hint }))
+          .catch(() => ({ data: { events: [] }, hint }))
       )
     ).then((results) => {
       if (cancelled) return;
       const seen   = new Set();
       const mapped = [];
-      results.forEach((res) => {
-        (res.events || []).forEach((ev) => {
+      results.forEach(({ data, hint }) => {
+        (data.events || []).forEach((ev) => {
           if (!seen.has(ev.id) && ev.name?.text) {
             seen.add(ev.id);
-            mapped.push(eventbriteToItem(ev));
+            mapped.push(eventbriteToItem(ev, hint));
           }
         });
       });
@@ -666,14 +669,14 @@ function useEvents() {
 // Quota: 10,000 units/day on the free tier; each search costs 100 units.
 // 6 queries × 100 = 600 units per full refresh. 24h cache keeps daily cost low.
 const YOUTUBE_QUERIES = [
-  "mindfulness meditation stress relief",
-  "personal growth productivity habits",
-  "relationship communication tips",
-  "career leadership coaching",
-  "financial wellness money tips",
-  "parenting family wellbeing",
-  "personal development full course",
-  "mindfulness meditation complete course",
+  { q: "mindfulness meditation stress relief",    hint: "video"  },
+  { q: "personal growth productivity habits",     hint: "video"  },
+  { q: "relationship communication tips",         hint: "video"  },
+  { q: "career leadership coaching",              hint: "video"  },
+  { q: "financial wellness money tips",           hint: "video"  },
+  { q: "parenting family wellbeing",              hint: "video"  },
+  { q: "personal development full course",        hint: "course" },
+  { q: "mindfulness meditation complete course",  hint: "course" },
 ];
 
 // Infer a structured subtype from the video title + description text.
@@ -688,7 +691,7 @@ function mapVideoSubtype(text) {
 
 // Map a raw YouTube search result item into the app's unified item shape.
 // Category/subcategory/method reuse the event text-based mappers.
-function youtubeToItem(video) {
+function youtubeToItem(video, hint = "video") {
   const snippet = video.snippet || {};
   const title   = snippet.title       || "";
   const desc    = snippet.description || "";
@@ -696,7 +699,7 @@ function youtubeToItem(video) {
   const category = mapEventCategory(text);
 
   const subtype = mapVideoSubtype(text);
-  const vidType = subtype === "course" ? "course" : "video";
+  const vidType = subtype === "course" || hint === "course" ? "course" : "video";
 
   return {
     id:           `yt-${video.id.videoId}`,
@@ -738,26 +741,27 @@ function useVideos() {
     let cancelled = false;
 
     Promise.all(
-      YOUTUBE_QUERIES.map((q) =>
+      YOUTUBE_QUERIES.map(({ q, hint }) =>
         fetch(
           `https://www.googleapis.com/youtube/v3/search` +
           `?part=snippet&type=video&q=${encodeURIComponent(q)}` +
           `&maxResults=20&relevanceLanguage=en&key=${apiKey}`
         )
           .then((r) => r.json())
-          .catch(() => ({ items: [] }))
+          .then((data) => ({ data, hint }))
+          .catch(() => ({ data: { items: [] }, hint }))
       )
     ).then((results) => {
       if (cancelled) return;
       const seen   = new Set();
       const mapped = [];
-      results.forEach((res) => {
-        if (res.error) { setError(res.error.message); return; }
-        (res.items || []).forEach((video) => {
+      results.forEach(({ data, hint }) => {
+        if (data.error) { setError(data.error.message); return; }
+        (data.items || []).forEach((video) => {
           const videoId = video.id?.videoId;
           if (videoId && !seen.has(videoId) && video.snippet?.title) {
             seen.add(videoId);
-            mapped.push(youtubeToItem(video));
+            mapped.push(youtubeToItem(video, hint));
           }
         });
       });
@@ -1459,7 +1463,7 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
     : "All Resources";
 
   // Show loading indicator when viewing live-fetched content types
-  const liveTypes = new Set(["book", "podcast", "event", "video"]);
+  const liveTypes = new Set(["book", "podcast", "event", "video", "workshop", "retreat", "course"]);
   const showLiveLoader = liveLoading && (!initialType || liveTypes.has(initialType));
 
   return (
