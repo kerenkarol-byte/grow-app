@@ -591,7 +591,7 @@ function useVideos() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!apiKey) return;           // no key → stay empty, no spinner
+    if (!apiKey) { console.warn("[Grow] VITE_YOUTUBE_API_KEY is not set"); return; }
     if (videos.length > 0) return; // cache hit
 
     let cancelled = false;
@@ -605,14 +605,14 @@ function useVideos() {
         )
           .then((r) => r.json())
           .then((data) => ({ data, hint }))
-          .catch(() => ({ data: { items: [] }, hint }))
+          .catch((e) => { console.error("[Grow] YouTube fetch failed:", e.message); return { data: { items: [] }, hint }; })
       )
     ).then((results) => {
       if (cancelled) return;
       const seen   = new Set();
       const mapped = [];
       results.forEach(({ data, hint }) => {
-        if (data.error) { setError(data.error.message); return; }
+        if (data.error) { const msg = data.error.message; setError(msg); console.error("[Grow] YouTube API error:", msg); return; }
         (data.items || []).forEach((video) => {
           const videoId = video.id?.videoId;
           if (videoId && !seen.has(videoId) && video.snippet?.title) {
