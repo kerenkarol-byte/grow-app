@@ -65,12 +65,12 @@ const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
 const CACHE_KEYS = {
-  books:         "grow-books-v1",
-  podcasts:      "grow-podcasts-v1",
-  events:        "grow-events-v1",
-  videos:        "grow-videos-v1",
-  spotifyShows:  "grow-spotify-shows-v1",
-  spotifyToken:  "grow-spotify-token-v1",
+  books:         "grow-books-v2",
+  podcasts:      "grow-podcasts-v2",
+  events:        "grow-events-v2",
+  videos:        "grow-videos-v2",
+  spotifyShows:  "grow-spotify-shows-v2",
+  spotifyToken:  "grow-spotify-token-v2",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
