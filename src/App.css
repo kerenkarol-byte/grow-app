@@ -751,44 +751,27 @@ body {
   background: linear-gradient(105deg, rgba(200, 152, 58, 0.05) 0%, #FFFAF2 36%);
 }
 
-/* ── Editor's Pick badge ── */
-.curated-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  background: #FDF3E0;
-  color: #8B5E1A;
-  border: 1px solid #D4A847;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-/* ── Curated source badge override ── */
-.source-badge--curated {
-  background: #FEF9F0;
-  color: #A07020;
-  border: 1px solid #E8C870;
-}
-
-/* ── New badge (items rotating into today's curated selection) ── */
+/* ── Editor's Pick + New badges — same visual language as .source-badge ── */
+.curated-badge,
 .new-badge {
   display: inline-flex;
   align-items: center;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 500;
   padding: 2px 7px;
   border-radius: 20px;
-  background: #E6F4F0;
-  color: #1A7060;
-  border: 1px solid #7ECABF;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.curated-badge {
+  background: #EDE8E0;
+  color: #7A6040;
+}
+
+.new-badge {
+  background: #E4EDEA;
+  color: #3A7060;
 }
 
 .card:hover,

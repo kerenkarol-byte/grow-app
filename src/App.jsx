@@ -65,7 +65,7 @@ const TYPE_ICONS = {
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_KEYS = {
   books:    "grow-books-v13",
-  podcasts: "grow-podcasts-v13",
+  podcasts: "grow-podcasts-v14",  // v14: proxy route fixes iTunes CORS
   videos:   "grow-videos-v13",
   curated:  "grow-curated-v2",   // daily rotation — invalidated after 24h
 };
@@ -448,9 +448,7 @@ function usePodcasts() {
     () =>
       Promise.all(
         PODCAST_QUERIES.map((q) =>
-          fetch(
-            `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${encodeURIComponent(q)}&limit=20`
-          )
+          fetch(`/api/podcasts?q=${encodeURIComponent(q)}`)
             .then((r) => r.json())
             .catch(() => ({ results: [] }))
         )
