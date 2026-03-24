@@ -429,45 +429,6 @@ body {
   z-index: 100;
 }
 
-/* ===== Type filter pills ===== */
-.type-filter-row {
-  display: flex;
-  gap: 6px;
-  padding: 6px 16px 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.type-filter-row::-webkit-scrollbar {
-  display: none;
-}
-
-.type-filter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 20px;
-  border: 1.5px solid #E0D4C4;
-  background: #FAF5EE;
-  color: #7A5A3A;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  flex-shrink: 0;
-}
-
-.type-filter-pill:hover {
-  background: #F0E8DC;
-  border-color: #C8B89A;
-}
-
-.type-filter-pill.active {
-  border-color: transparent;
-  font-weight: 700;
-}
 
 /* ===== Dropdown ===== */
 .dropdown-wrapper {

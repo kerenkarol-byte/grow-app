@@ -65,12 +65,12 @@ const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
 const CACHE_KEYS = {
-  books:         "grow-books-v4",
-  podcasts:      "grow-podcasts-v4",
-  events:        "grow-events-v4",
-  videos:        "grow-videos-v4",
-  spotifyShows:  "grow-spotify-shows-v4",
-  spotifyToken:  "grow-spotify-token-v4",
+  books:         "grow-books-v5",
+  podcasts:      "grow-podcasts-v5",
+  events:        "grow-events-v5",
+  videos:        "grow-videos-v5",
+  spotifyShows:  "grow-spotify-shows-v5",
+  spotifyToken:  "grow-spotify-token-v5",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -331,7 +331,7 @@ function itunesPodcastToItem(podcast) {
     spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(podcast.collectionName || "")}`,
     description: desc,
     thumbnail: podcast.artworkUrl600 || podcast.artworkUrl100 || null,
-    source: "Apple Podcasts",
+    source: "Apple",
   };
 }
 
@@ -934,7 +934,7 @@ function PriceDropdown({ priceType, maxPrice, onPriceType, onMaxPrice, isOpen, o
 }
 
 // ─── Multi-select dropdown ────────────────────────────────────────────────────
-function MultiSelectDropdown({ label, options, selected, onChange, isOpen, onToggle }) {
+function MultiSelectDropdown({ label, options, selected, onChange, isOpen, onToggle, labelMap = {} }) {
   const toggle = (val) =>
     onChange(selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val]);
 
@@ -950,7 +950,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, isOpen, onTog
           {options.map((opt) => (
             <label key={opt} className="dropdown-option">
               <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} />
-              <span>{opt}</span>
+              <span>{labelMap[opt] ?? opt}</span>
             </label>
           ))}
         </div>
@@ -1463,6 +1463,13 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
             selected={filters.category} onChange={setFilter("category")}
             isOpen={openDropdown === "category"} onToggle={() => toggleDropdown("category")} />
         )}
+        {availableTypes.length > 1 && (
+          <MultiSelectDropdown label="Type"
+            options={availableTypes.map((ct) => ct.type)}
+            labelMap={Object.fromEntries(availableTypes.map((ct) => [ct.type, ct.label]))}
+            selected={filters.type} onChange={setFilter("type")}
+            isOpen={openDropdown === "type"} onToggle={() => toggleDropdown("type")} />
+        )}
         <MultiSelectDropdown label="Method" options={FILTER_OPTIONS.method}
           selected={filters.method} onChange={setFilter("method")}
           isOpen={openDropdown === "method"} onToggle={() => toggleDropdown("method")} />
@@ -1482,24 +1489,6 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
         </button>
         {hasActiveFilters && <button className="clear-btn" onClick={clearAll}>Clear</button>}
       </div>
-
-      {availableTypes.length > 1 && (
-        <div className="type-filter-row">
-          {availableTypes.map((ct) => (
-            <button key={ct.type}
-              className={`type-filter-pill${filters.type.includes(ct.type) ? " active" : ""}`}
-              style={filters.type.includes(ct.type) ? { background: ct.color, color: ct.textColor } : {}}
-              onClick={() => setFilters((prev) => ({
-                ...prev,
-                type: prev.type.includes(ct.type)
-                  ? prev.type.filter((t) => t !== ct.type)
-                  : [...prev.type, ct.type],
-              }))}>
-              {ct.emoji} {ct.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       <RecsStrip items={recs} onSelectItem={onSelectItem}
         favorites={favorites} toggleFavorite={toggleFavorite} />
