@@ -67,6 +67,7 @@ const CACHE_KEYS = {
   books:    "grow-books-v13",
   podcasts: "grow-podcasts-v13",
   videos:   "grow-videos-v13",
+  curated:  "grow-curated-v1",   // daily rotation — invalidated after 24h
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -83,6 +84,57 @@ function readCache(key, ttl = CACHE_TTL) {
 function writeCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); }
   catch {} // storage full or private mode — fail silently, keep working
+}
+
+// ─── Daily curated rotation ───────────────────────────────────────────────────
+// CURATED_ITEMS is a static pool of 27 hand-picked resources baked into the
+// bundle. The pool never changes between deploys, but the daily rotation makes
+// the feed feel freshly curated each time the user returns.
+//
+// How it works:
+//   1. On load, check localStorage for a cached selection.
+//   2. Cache fresh (<24h)?  → return it as-is (zero work).
+//   3. Cache stale / absent → derive today's seed from the UTC day number,
+//      run a deterministic Fisher-Yates shuffle, slice the top N items,
+//      persist to localStorage with a new timestamp, return the selection.
+//
+// Result: same selection all day for any given user; a different selection
+// the next day (or whenever the 24h TTL expires).
+const CURATED_DAILY_COUNT = 15; // show 15 of 27 items; rotates daily
+
+// Minimal linear-congruential generator — deterministic, no dependencies.
+// Returns a function that produces pseudo-random floats in [0, 1).
+function lcgRand(seed) {
+  let s = seed >>> 0; // ensure unsigned 32-bit
+  return () => {
+    s = Math.imul(s, 1664525) + 1013904223 | 0;
+    return (s >>> 0) / 0x100000000;
+  };
+}
+
+// In-place Fisher-Yates shuffle using the supplied rand() function.
+function seededShuffle(arr, seed) {
+  const rand = lcgRand(seed);
+  const out  = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Returns the daily curated selection, reading from or writing to localStorage.
+function getDailyCurated() {
+  const cached = readCache(CACHE_KEYS.curated); // null if absent or >24h old
+  if (cached) return cached;
+
+  // UTC day number changes at midnight UTC — use as a repeatable daily seed.
+  const daySeed  = Math.floor(Date.now() / CACHE_TTL);
+  const shuffled = seededShuffle(CURATED_ITEMS, daySeed);
+  const selection = shuffled.slice(0, CURATED_DAILY_COUNT);
+
+  writeCache(CACHE_KEYS.curated, selection);
+  return selection;
 }
 
 // ─── useApiCache ──────────────────────────────────────────────────────────────
@@ -1404,6 +1456,10 @@ export default function App() {
     });
   };
 
+  // Daily curated rotation — computed once on mount from cache or fresh seed.
+  // Recalculates automatically when the 24h cache expires (next app load after midnight UTC).
+  const [dailyCurated] = useState(() => getDailyCurated());
+
   // Fetch live content from external APIs.
   const { books: apiBooks, loading: booksLoading }          = useBooks();
   const { podcasts: apiPodcasts, loading: podcastsLoading } = usePodcasts();
@@ -1416,8 +1472,8 @@ export default function App() {
     const books    = booksLoading    ? [] : apiBooks;
     const podcasts = podcastsLoading ? [] : apiPodcasts;
     const videos   = videosLoading   ? [] : apiVideos;
-    return [...CURATED_ITEMS, ...books, ...podcasts, ...videos];
-  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading, apiVideos, videosLoading]);
+    return [...dailyCurated, ...books, ...podcasts, ...videos];
+  }, [dailyCurated, apiBooks, booksLoading, apiPodcasts, podcastsLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => {
