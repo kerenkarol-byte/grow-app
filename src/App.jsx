@@ -63,10 +63,9 @@ const TYPE_ICONS = {
 // With 24h cache, each browser makes at most 5 requests per day regardless of reloads.
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_KEYS = {
-  books:    "grow-books-v12",
-  podcasts: "grow-podcasts-v12",
-  coursera: "grow-coursera-v12",
-  videos:   "grow-videos-v12",
+  books:    "grow-books-v13",
+  podcasts: "grow-podcasts-v13",
+  videos:   "grow-videos-v13",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -448,77 +447,12 @@ function mapEventMethod(text) {
   return "coaching";
 }
 
-// ─── Coursera API ─────────────────────────────────────────────────────────────
-// Public endpoint — no API key required.
-// The courses.v1 API does not support keyword search; we fetch spread pages
-// across the full catalog (~19 k courses) and filter client-side for personal
-// growth topics.  5 pages × 100 courses = 500 sampled, ~30-60 relevant kept.
-const COURSERA_OFFSETS  = [0, 2000, 5000, 8000, 12000];
-const COURSERA_GROWTH_RE =
-  /mindful|meditat|stress|anxi|relat|communicat|leadership|career|financ|money|budget|invest|parent|child|family|productiv|habit|self.help|well.?being|emotional|mental.health|personal.develop|motivat|confiden|resilien|happiness|psychology|therapy|coaching/i;
-
-function courseraToItem(course) {
-  const text = `${course.name || ""} ${course.description || ""}`;
-  const category = mapEventCategory(text);
-  const desc = course.description || "";
-  return {
-    id:          `co-${course.id}`,
-    title:       course.name || "Untitled Course",
-    type:        "course",
-    category,
-    subcategory: mapEventSubcategory(text, category),
-    method:      mapEventMethod(text),
-    priceType:   "paid",
-    price:       "Free audit",
-    rating:      4.5,
-    ratingCount: null,
-    link:        course.slug ? `https://www.coursera.org/learn/${course.slug}` : null,
-    description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
-    thumbnail:   course.photoUrl || null,
-    source:      "Coursera",
-  };
-}
-
-function useCoursera() {
-  const [courses, setCourses] = useState(() => readCache(CACHE_KEYS.coursera) ?? []);
-  const [loading, setLoading] = useState(() => readCache(CACHE_KEYS.coursera) === null);
-
-  useEffect(() => {
-    if (courses.length > 0) return;
-    let cancelled = false;
-
-    Promise.all(
-      COURSERA_OFFSETS.map((start) =>
-        fetch(
-          `https://api.coursera.org/api/courses.v1?start=${start}&limit=100` +
-          `&fields=name,slug,description,photoUrl`
-        )
-          .then((r) => r.json())
-          .catch(() => ({ elements: [] }))
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const seen   = new Set();
-      const mapped = [];
-      results.forEach((res) => {
-        (res.elements || []).forEach((course) => {
-          if (!seen.has(course.id) && course.name &&
-              COURSERA_GROWTH_RE.test(`${course.name} ${course.description || ""}`)) {
-            seen.add(course.id);
-            mapped.push(courseraToItem(course));
-          }
-        });
-      });
-      writeCache(CACHE_KEYS.coursera, mapped);
-      setCourses(mapped);
-      setLoading(false);
-    });
-
-    return () => { cancelled = true; };
-  }, []);
-
-  return { courses, loading };
-}
+// ─── Future course source ─────────────────────────────────────────────────────
+// Coursera removed: api.coursera.org blocks browser requests (no CORS headers).
+// Candidates for a future course integration:
+//   - A server-side Vercel function proxying Coursera or edX
+//   - A CORS-enabled course API if one becomes available
+// Expected hook shape: function useCourses() → { courses: Item[], loading: bool }
 
 // ─── YouTube Data API ─────────────────────────────────────────────────────────
 // Token: VITE_YOUTUBE_API_KEY in .env.local
@@ -1434,20 +1368,17 @@ export default function App() {
   // Fetch live content from external APIs.
   const { books: apiBooks, loading: booksLoading }          = useBooks();
   const { podcasts: apiPodcasts, loading: podcastsLoading } = usePodcasts();
-  const { courses: apiCoursera, loading: courseraLoading }  = useCoursera();
   const { videos: apiVideos, loading: videosLoading }       = useVideos();
-  const liveLoading = booksLoading || podcastsLoading || courseraLoading || videosLoading;
+  const liveLoading = booksLoading || podcastsLoading || videosLoading;
 
   // Merge all live API data. Each source stays empty until its fetch resolves.
   // To add a new source: call its hook above, add it here, and include in liveLoading.
   const allItems = useMemo(() => {
     const books    = booksLoading    ? [] : apiBooks;
     const podcasts = podcastsLoading ? [] : apiPodcasts;
-    const coursera = courseraLoading ? [] : apiCoursera;
     const videos   = videosLoading   ? [] : apiVideos;
-    return [...books, ...podcasts, ...coursera, ...videos];
-  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading,
-      apiCoursera, courseraLoading, apiVideos, videosLoading]);
+    return [...books, ...podcasts, ...videos];
+  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => {
