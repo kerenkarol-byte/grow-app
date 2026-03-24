@@ -973,7 +973,13 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
             <span className="price-badge" data-price={item.priceType}>
               {item.priceType === "free" ? "Free" : item.price || "Paid"}
             </span>
-            {item.source && <span className="source-badge">{item.source}</span>}
+            {item.source && (
+              <span className="source-badge">
+                {item.type === "podcast" && (item.spotifyUrl || item.appleUrl)
+                  ? item.source === "Apple" ? "Apple · Spotify" : "Spotify · Apple"
+                  : item.source}
+              </span>
+            )}
           </div>
           <h2 className="card-title">{item.title}</h2>
           {(item.location || item.date) && (
@@ -1117,7 +1123,11 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
           ...(item.date     ? [["Date",     fmtDate(item.date)]] : []),
           ["Method", item.method],
           ["Price",  item.price ?? (item.priceType === "paid" ? "Paid" : "Free")],
-          ...(item.source ? [["Source", item.source]] : []),
+          ...(item.source ? [["Source",
+            item.type === "podcast" && (item.spotifyUrl || item.appleUrl)
+              ? item.source === "Apple" ? "Apple · Spotify" : "Spotify · Apple"
+              : item.source
+          ]] : []),
         ].map(([label, value]) => (
           <div className="field-row" key={label}>
             <span className="field-label">{label}</span>
