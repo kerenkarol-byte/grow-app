@@ -775,6 +775,22 @@ body {
   border: 1px solid #E8C870;
 }
 
+/* ── New badge (items rotating into today's curated selection) ── */
+.new-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #E6F4F0;
+  color: #1A7060;
+  border: 1px solid #7ECABF;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .card:hover,
 .card:focus {
   box-shadow: 0 6px 20px rgba(80, 40, 10, 0.14);

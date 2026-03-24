@@ -67,7 +67,7 @@ const CACHE_KEYS = {
   books:    "grow-books-v13",
   podcasts: "grow-podcasts-v13",
   videos:   "grow-videos-v13",
-  curated:  "grow-curated-v1",   // daily rotation — invalidated after 24h
+  curated:  "grow-curated-v2",   // daily rotation — invalidated after 24h
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -87,19 +87,26 @@ function writeCache(key, data) {
 }
 
 // ─── Daily curated rotation ───────────────────────────────────────────────────
-// CURATED_ITEMS is a static pool of 27 hand-picked resources baked into the
-// bundle. The pool never changes between deploys, but the daily rotation makes
-// the feed feel freshly curated each time the user returns.
+// CURATED_ITEMS is a static pool baked into the bundle.
+// Each day, a subset is selected and a few items rotate in/out, giving the
+// feed a freshly-curated feel when the user returns.
 //
 // How it works:
-//   1. On load, check localStorage for a cached selection.
-//   2. Cache fresh (<24h)?  → return it as-is (zero work).
-//   3. Cache stale / absent → derive today's seed from the UTC day number,
-//      run a deterministic Fisher-Yates shuffle, slice the top N items,
-//      persist to localStorage with a new timestamp, return the selection.
+//   1. On load, check localStorage (grow-curated-v2). Cache hit → done.
+//   2. Cache miss → compute today's seed from the UTC day number.
+//   3. Shuffle the full pool with today's seed; slice CURATED_DAILY_COUNT items.
+//   4. Repeat with yesterday's seed → build a Set of yesterday's IDs.
+//   5. Mark every item that wasn't in yesterday's selection as isNew: true.
+//   6. Persist the annotated selection; return it.
 //
-// Result: same ordering all day for any given user; a different ordering
-// the next day (or whenever the 24h TTL expires).
+// Result for the user:
+//   • Same selection all day (cache hit on every reload within 24h).
+//   • Next visit: ~7 items replaced, those carry a "New" badge.
+//   • "New" labels disappear the following day when those items are no longer new.
+
+// How many items to show per day. With a pool of 39, leaving 9 on the bench
+// means ~7 items rotate in each day — enough to feel updated, not jarring.
+const CURATED_DAILY_COUNT = 30;
 
 // Minimal linear-congruential generator — deterministic, no dependencies.
 // Returns a function that produces pseudo-random floats in [0, 1).
@@ -127,9 +134,24 @@ function getDailyCurated() {
   const cached = readCache(CACHE_KEYS.curated); // null if absent or >24h old
   if (cached) return cached;
 
-  // UTC day number changes at midnight UTC — use as a repeatable daily seed.
-  const daySeed  = Math.floor(Date.now() / CACHE_TTL);
-  const selection = seededShuffle(CURATED_ITEMS, daySeed); // all items, new order each day
+  // UTC day number — changes at midnight UTC, used as a repeatable daily seed.
+  const daySeed = Math.floor(Date.now() / CACHE_TTL);
+
+  // Today's selection
+  const todayItems = seededShuffle(CURATED_ITEMS, daySeed).slice(0, CURATED_DAILY_COUNT);
+
+  // Yesterday's selection — used only to determine which items are "new today"
+  const yesterdayIds = new Set(
+    seededShuffle(CURATED_ITEMS, daySeed - 1)
+      .slice(0, CURATED_DAILY_COUNT)
+      .map((i) => i.id)
+  );
+
+  // Annotate items that rotate in fresh today
+  const selection = todayItems.map((item) => ({
+    ...item,
+    isNew: !yesterdayIds.has(item.id),
+  }));
 
   writeCache(CACHE_KEYS.curated, selection);
   return selection;
@@ -849,6 +871,9 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
             {item.isCurated && (
               <span className="curated-badge">✦ Editor's Pick</span>
             )}
+            {item.isNew && (
+              <span className="new-badge">New</span>
+            )}
             {item.source && !item.isCurated && (
               <span className="source-badge">{item.source}</span>
             )}
@@ -952,6 +977,9 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
         </span>
         {item.isCurated && (
           <span className="curated-badge">✦ Editor's Pick</span>
+        )}
+        {item.isNew && (
+          <span className="new-badge">New</span>
         )}
       </div>
       {item.thumbnail && (
