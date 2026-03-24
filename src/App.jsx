@@ -61,16 +61,14 @@ const TYPE_ICONS = {
 // Google Books unauthenticated quota: 1,000 req/day.
 // With 5 queries per load and no cache, that's only ~200 loads/day before 429s.
 // With 24h cache, each browser makes at most 5 requests per day regardless of reloads.
-const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
-const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
-const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
+const CACHE_TTL        = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_TTL_EVENTS =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_KEYS = {
-  books:         "grow-books-v7",
-  podcasts:      "grow-podcasts-v7",
-  events:        "grow-events-v7",
-  videos:        "grow-videos-v7",
-  spotifyShows:  "grow-spotify-shows-v7",
-  spotifyToken:  "grow-spotify-token-v7",
+  books:        "grow-books-v8",
+  podcasts:     "grow-podcasts-v8",
+  events:       "grow-events-v8",
+  videos:       "grow-videos-v8",
+  listenNotes:  "grow-listennotes-v8",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -373,104 +371,89 @@ function usePodcasts() {
   return { podcasts, loading };
 }
 
-// ─── Spotify Podcasts API ─────────────────────────────────────────────────────
-// Requires VITE_SPOTIFY_CLIENT_ID + VITE_SPOTIFY_CLIENT_SECRET in .env.local.
-// Uses Client Credentials flow — no user login needed, just app-level access.
-// Note: like other API keys in this app, credentials are visible in network
-// requests; use a server-side proxy for production.
-async function getSpotifyToken(clientId, clientSecret) {
-  const cached = readCache(CACHE_KEYS.spotifyToken, CACHE_TTL_SPOTIFY_TOKEN);
-  if (cached) return cached;
-  const res = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: "grant_type=client_credentials",
-  });
-  if (!res.ok) return null;
-  const { access_token } = await res.json();
-  if (access_token) writeCache(CACHE_KEYS.spotifyToken, access_token);
-  return access_token || null;
-}
-
-const SPOTIFY_QUERIES = [
-  "personal development self improvement",
-  "mindfulness meditation mental health",
-  "productivity habits coaching",
-  "relationships communication therapy",
-  "career leadership business",
+// ─── Listen Notes Podcasts API ────────────────────────────────────────────────
+// Requires VITE_LISTENNOTES_API_KEY in .env.local.
+// Get a free key at https://www.listennotes.com/api/pricing/
+// listen_score is 0–100; we normalise to a 3.5–5.0 star range.
+const LISTENNOTES_QUERIES = [
+  "self improvement personal development",
+  "mindfulness meditation anxiety",
+  "productivity habits deep work",
+  "relationships communication",
+  "career leadership success",
   "financial wellness money",
+  "parenting family wellbeing",
 ];
 
-function spotifyShowToItem(show) {
-  const text = `${show.name} ${show.description}`;
+function listenNotesToItem(podcast) {
+  const text = `${podcast.title_original || ""} ${podcast.description_original || ""}`;
   const category = mapEventCategory(text);
-  const desc = show.description || "";
+  const desc = podcast.description_original || "";
   return {
-    id:          `sp-${show.id}`,
-    title:       show.name || "Untitled Podcast",
+    id:          `ln-${podcast.id}`,
+    title:       podcast.title_original || "Untitled Podcast",
     type:        "podcast",
     category,
     subcategory: mapEventSubcategory(text, category),
     method:      mapEventMethod(text),
     priceType:   "free",
-    rating:      4.3,
+    rating:      podcast.listen_score
+                   ? Math.min(5.0, Math.max(3.5, parseFloat((podcast.listen_score / 20).toFixed(1))))
+                   : 4.0,
     ratingCount: null,
-    link:        show.external_urls?.spotify || null,
-    appleUrl:    `https://podcasts.apple.com/search?term=${encodeURIComponent(show.name || "")}`,
+    link:        null,
+    appleUrl:    `https://podcasts.apple.com/search?term=${encodeURIComponent(podcast.title_original || "")}`,
+    spotifyUrl:  `https://open.spotify.com/search/${encodeURIComponent(podcast.title_original || "")}`,
     description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
-    thumbnail:   show.images?.[0]?.url || null,
-    source:      "Spotify",
+    thumbnail:   podcast.image || podcast.thumbnail || null,
+    source:      "Listen Notes",
   };
 }
 
-function useSpotifyPodcasts() {
-  const clientId     = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-  const clientSecret = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET;
-  const hasCreds = !!(clientId && clientSecret);
+function useListenNotesPodcasts() {
+  const apiKey = import.meta.env.VITE_LISTENNOTES_API_KEY;
 
-  const [shows, setShows]     = useState(() => hasCreds ? (readCache(CACHE_KEYS.spotifyShows) ?? []) : []);
-  const [loading, setLoading] = useState(() => hasCreds && readCache(CACHE_KEYS.spotifyShows) === null);
+  const [shows, setShows]     = useState(() => apiKey ? (readCache(CACHE_KEYS.listenNotes) ?? []) : []);
+  const [loading, setLoading] = useState(() => !!apiKey && readCache(CACHE_KEYS.listenNotes) === null);
+  const [error, setError]     = useState(null);
 
   useEffect(() => {
-    if (!hasCreds || shows.length > 0) return;
+    if (!apiKey || shows.length > 0) return;
     let cancelled = false;
-    getSpotifyToken(clientId, clientSecret)
-      .then((token) => {
-        if (!token || cancelled) { setLoading(false); return null; }
-        return Promise.all(
-          SPOTIFY_QUERIES.map((q) =>
-            fetch(
-              `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=show&market=US&limit=20`,
-              { headers: { Authorization: `Bearer ${token}` } }
-            )
-              .then((r) => r.json())
-              .catch(() => ({ shows: { items: [] } }))
-          )
-        );
-      })
-      .then((results) => {
-        if (!results || cancelled) return;
-        const seen = new Set();
-        const mapped = [];
-        results.forEach((res) => {
-          (res.shows?.items || []).forEach((show) => {
-            if (!seen.has(show.id) && show.name) {
-              seen.add(show.id);
-              mapped.push(spotifyShowToItem(show));
-            }
-          });
+
+    Promise.all(
+      LISTENNOTES_QUERIES.map((q) =>
+        fetch(
+          `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(q)}&type=podcast&page_size=10&language=English&safe_mode=1`,
+          { headers: { "X-ListenAPI-Key": apiKey } }
+        )
+          .then((r) => {
+            if (!r.ok) throw new Error(`Listen Notes ${r.status}`);
+            return r.json();
+          })
+          .catch((e) => { setError(e.message); return { results: [] }; })
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const seen   = new Set();
+      const mapped = [];
+      results.forEach((res) => {
+        (res.results || []).forEach((podcast) => {
+          if (!seen.has(podcast.id) && podcast.title_original) {
+            seen.add(podcast.id);
+            mapped.push(listenNotesToItem(podcast));
+          }
         });
-        writeCache(CACHE_KEYS.spotifyShows, mapped);
-        setShows(mapped);
-        setLoading(false);
       });
+      writeCache(CACHE_KEYS.listenNotes, mapped);
+      setShows(mapped);
+      setLoading(false);
+    });
+
     return () => { cancelled = true; };
   }, []);
 
-  return { shows, loading };
+  return { shows, loading, error };
 }
 
 // ─── Eventbrite API ───────────────────────────────────────────────────────────
@@ -989,9 +972,9 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
             </span>
             {item.source && (
               <span className="source-badge">
-                {item.type === "podcast" && (item.spotifyUrl || item.appleUrl)
-                  ? item.source === "Apple" ? "Apple · Spotify" : "Spotify · Apple"
-                  : item.source}
+                {item.type === "podcast" && item.source === "Apple" ? "Apple · Spotify"
+                : item.type === "podcast" && item.source === "Spotify" ? "Spotify · Apple"
+                : item.source}
               </span>
             )}
           </div>
@@ -1138,9 +1121,9 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
           ["Method", item.method],
           ["Price",  item.price ?? (item.priceType === "paid" ? "Paid" : "Free")],
           ...(item.source ? [["Source",
-            item.type === "podcast" && (item.spotifyUrl || item.appleUrl)
-              ? item.source === "Apple" ? "Apple · Spotify" : "Spotify · Apple"
-              : item.source
+            item.type === "podcast" && item.source === "Apple"   ? "Apple · Spotify" :
+            item.type === "podcast" && item.source === "Spotify" ? "Spotify · Apple" :
+            item.source
           ]] : []),
         ].map(([label, value]) => (
           <div className="field-row" key={label}>
@@ -1584,21 +1567,21 @@ export default function App() {
   // Fetch live content from external APIs.
   const { books: apiBooks, loading: booksLoading }          = useBooks();
   const { podcasts: apiPodcasts, loading: podcastsLoading } = usePodcasts();
-  const { shows: apiSpotify, loading: spotifyLoading }      = useSpotifyPodcasts();
+  const { shows: apiListenNotes, loading: listenNotesLoading } = useListenNotesPodcasts();
   const { events: apiEvents, loading: eventsLoading }       = useEvents();
   const { videos: apiVideos, loading: videosLoading }       = useVideos();
-  const liveLoading = booksLoading || podcastsLoading || spotifyLoading || eventsLoading || videosLoading;
+  const liveLoading = booksLoading || podcastsLoading || listenNotesLoading || eventsLoading || videosLoading;
 
   // Merge all real API data. Each source is empty while its fetch is in flight.
   const allItems = useMemo(() => {
-    const books    = booksLoading    ? [] : apiBooks;
-    const podcasts = podcastsLoading ? [] : apiPodcasts;
-    const spotify  = spotifyLoading  ? [] : apiSpotify;
-    const events   = eventsLoading   ? [] : apiEvents;
-    const videos   = videosLoading   ? [] : apiVideos;
-    return [...books, ...podcasts, ...spotify, ...events, ...videos];
+    const books       = booksLoading       ? [] : apiBooks;
+    const podcasts    = podcastsLoading    ? [] : apiPodcasts;
+    const listenNotes = listenNotesLoading ? [] : apiListenNotes;
+    const events      = eventsLoading      ? [] : apiEvents;
+    const videos      = videosLoading      ? [] : apiVideos;
+    return [...books, ...podcasts, ...listenNotes, ...events, ...videos];
   }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading,
-      apiSpotify, spotifyLoading, apiEvents, eventsLoading, apiVideos, videosLoading]);
+      apiListenNotes, listenNotesLoading, apiEvents, eventsLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => {
