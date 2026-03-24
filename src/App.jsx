@@ -61,14 +61,11 @@ const TYPE_ICONS = {
 // Google Books unauthenticated quota: 1,000 req/day.
 // With 5 queries per load and no cache, that's only ~200 loads/day before 429s.
 // With 24h cache, each browser makes at most 5 requests per day regardless of reloads.
-const CACHE_TTL        = 24 * 60 * 60 * 1000; // 24 hours
-const CACHE_TTL_EVENTS =  6 * 60 * 60 * 1000; //  6 hours — events update more often
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_KEYS = {
-  books:        "grow-books-v9",
-  podcasts:     "grow-podcasts-v9",
-  meetupEvents: "grow-meetup-v9",
-  videos:       "grow-videos-v9",
-  listenNotes:  "grow-listennotes-v9",
+  books:    "grow-books-v10",
+  podcasts: "grow-podcasts-v10",
+  videos:   "grow-videos-v10",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -371,106 +368,17 @@ function usePodcasts() {
   return { podcasts, loading };
 }
 
-// ─── Listen Notes Podcasts API ────────────────────────────────────────────────
-// Requires VITE_LISTENNOTES_API_KEY in .env.local.
-// Get a free key at https://www.listennotes.com/api/pricing/
-// listen_score is 0–100; we normalise to a 3.5–5.0 star range.
-const LISTENNOTES_QUERIES = [
-  "self improvement personal development",
-  "mindfulness meditation anxiety",
-  "productivity habits deep work",
-  "relationships communication",
-  "career leadership success",
-  "financial wellness money",
-  "parenting family wellbeing",
-];
+// ─── Future podcast source ────────────────────────────────────────────────────
+// Add a second podcast provider here when one becomes available without
+// paid-tier or complex OAuth requirements.
+// Expected hook shape:  function useSomePodcasts() → { shows: Item[], loading: bool }
+// Each item must conform to the unified item shape (see googleBookToItem for reference).
 
-function listenNotesToItem(podcast) {
-  const text = `${podcast.title_original || ""} ${podcast.description_original || ""}`;
-  const category = mapEventCategory(text);
-  const desc = podcast.description_original || "";
-  return {
-    id:          `ln-${podcast.id}`,
-    title:       podcast.title_original || "Untitled Podcast",
-    type:        "podcast",
-    category,
-    subcategory: mapEventSubcategory(text, category),
-    method:      mapEventMethod(text),
-    priceType:   "free",
-    rating:      podcast.listen_score
-                   ? Math.min(5.0, Math.max(3.5, parseFloat((podcast.listen_score / 20).toFixed(1))))
-                   : 4.0,
-    ratingCount: null,
-    link:        null,
-    appleUrl:    `https://podcasts.apple.com/search?term=${encodeURIComponent(podcast.title_original || "")}`,
-    spotifyUrl:  `https://open.spotify.com/search/${encodeURIComponent(podcast.title_original || "")}`,
-    description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
-    thumbnail:   podcast.image || podcast.thumbnail || null,
-    source:      "Listen Notes",
-  };
-}
-
-function useListenNotesPodcasts() {
-  const apiKey = import.meta.env.VITE_LISTENNOTES_API_KEY;
-
-  const [shows, setShows]     = useState(() => apiKey ? (readCache(CACHE_KEYS.listenNotes) ?? []) : []);
-  const [loading, setLoading] = useState(() => !!apiKey && readCache(CACHE_KEYS.listenNotes) === null);
-  const [error, setError]     = useState(null);
-
-  useEffect(() => {
-    if (!apiKey || shows.length > 0) return;
-    let cancelled = false;
-
-    Promise.all(
-      LISTENNOTES_QUERIES.map((q) =>
-        fetch(
-          `https://listen-api.listennotes.com/api/v2/search?q=${encodeURIComponent(q)}&type=podcast&page_size=10&language=English&safe_mode=1`,
-          { headers: { "X-ListenAPI-Key": apiKey } }
-        )
-          .then((r) => {
-            if (!r.ok) throw new Error(`Listen Notes ${r.status}`);
-            return r.json();
-          })
-          .catch((e) => { setError(e.message); return { results: [] }; })
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const seen   = new Set();
-      const mapped = [];
-      results.forEach((res) => {
-        (res.results || []).forEach((podcast) => {
-          if (!seen.has(podcast.id) && podcast.title_original) {
-            seen.add(podcast.id);
-            mapped.push(listenNotesToItem(podcast));
-          }
-        });
-      });
-      writeCache(CACHE_KEYS.listenNotes, mapped);
-      setShows(mapped);
-      setLoading(false);
-    });
-
-    return () => { cancelled = true; };
-  }, []);
-
-  return { shows, loading, error };
-}
-
-// ─── Meetup Events API ────────────────────────────────────────────────────────
-// Requires VITE_MEETUP_KEY in .env.local.
-// Get a Bearer token at: meetup.com → Account → Getting Started with OAuth
-// or the legacy key page: secure.meetup.com/meetup_api/key/
-// Results cached for 6h — events change more often than books/podcasts.
-const MEETUP_QUERIES = [
-  "personal growth mindfulness retreat",
-  "wellness stress management workshop",
-  "relationships communication workshop",
-  "career professional development workshop",
-  "productivity habits focus workshop",
-  "financial literacy money workshop",
-  "parenting family wellbeing meetup",
-  "yoga meditation wellness retreat",
-];
+// ─── Events / Workshops / Retreats ───────────────────────────────────────────
+// Shared text-classification helpers used by YouTube (and any future event source).
+// To add an event/workshop/retreat source, implement:
+//   function useMyEvents() → { events: Item[], loading: bool }
+// and merge into allItems in the App component below.
 
 function mapEventCategory(text) {
   const t = text.toLowerCase();
@@ -537,131 +445,6 @@ function mapEventMethod(text) {
   if (/therap|clinical|psychol|cbt|trauma/.test(t))         return "therapy";
   if (/nlp|neuro.linguistic/.test(t))                       return "NLP";
   return "coaching";
-}
-
-function meetupEventToItem(ev) {
-  const text = `${ev.title || ""} ${ev.description || ""}`;
-  const category = mapEventCategory(text);
-  const t = text.toLowerCase();
-  const evType = /\bretreat\b|\bgetaway\b|\bimmersion\b/.test(t) ? "retreat"
-               : /\bworkshop\b|\bmasterclass\b|\bseminar\b|\bintensive\b|\btraining\b/.test(t) ? "workshop"
-               : "event";
-
-  let location = null;
-  if (ev.isOnline) {
-    location = "Online";
-  } else if (ev.venue) {
-    const parts = [ev.venue.city, ev.venue.state].filter(Boolean);
-    location = parts.length ? parts.join(", ") : ev.venue.name || null;
-  }
-
-  const photo = ev.featuredEventPhoto;
-  const thumbnail = photo?.highResUrl || photo?.baseUrl || null;
-  const desc = ev.description || "";
-
-  return {
-    id:          `mu-${ev.id}`,
-    title:       ev.title || "Untitled Event",
-    type:        evType,
-    category,
-    subcategory: mapEventSubcategory(text, category),
-    method:      mapEventMethod(text),
-    priceType:   "free",
-    price:       null,
-    rating:      4.5,
-    ratingCount: null,
-    date:        ev.dateTime ? ev.dateTime.split("T")[0] : null,
-    location,
-    description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
-    thumbnail,
-    link:        ev.eventUrl || null,
-    source:      "Meetup",
-  };
-}
-
-// Fetches upcoming personal-growth events from Meetup via the GraphQL API.
-// Requires VITE_MEETUP_KEY in .env.local.
-function useMeetupEvents() {
-  const apiKey = import.meta.env.VITE_MEETUP_KEY;
-
-  const [events, setEvents]   = useState(() =>
-    apiKey ? (readCache(CACHE_KEYS.meetupEvents, CACHE_TTL_EVENTS) ?? []) : []
-  );
-  const [loading, setLoading] = useState(() =>
-    !!apiKey && readCache(CACHE_KEYS.meetupEvents, CACHE_TTL_EVENTS) === null
-  );
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!apiKey || events.length > 0) return;
-    let cancelled = false;
-
-    Promise.all(
-      MEETUP_QUERIES.map((q) =>
-        fetch("https://api.meetup.com/gql", {
-          method:  "POST",
-          headers: {
-            "Content-Type":  "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            query: `
-              query ($q: String!) {
-                keywordSearch(
-                  input: { first: 20 }
-                  filter: { query: $q, source: EVENTS }
-                ) {
-                  edges {
-                    node {
-                      result {
-                        ... on Event {
-                          id
-                          title
-                          dateTime
-                          description
-                          isOnline
-                          eventUrl
-                          venue { name city state country }
-                          featuredEventPhoto { highResUrl baseUrl }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            `,
-            variables: { q },
-          }),
-        })
-          .then((r) => {
-            if (!r.ok) throw new Error(`Meetup ${r.status}`);
-            return r.json();
-          })
-          .catch((e) => { setError(e.message); return { data: null }; })
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const seen   = new Set();
-      const mapped = [];
-      const now    = new Date();
-      results.forEach((res) => {
-        (res?.data?.keywordSearch?.edges ?? []).forEach(({ node }) => {
-          const ev = node?.result;
-          if (!ev?.id || !ev?.title || seen.has(ev.id)) return;
-          if (ev.dateTime && new Date(ev.dateTime) < now) return; // skip past events
-          seen.add(ev.id);
-          mapped.push(meetupEventToItem(ev));
-        });
-      });
-      writeCache(CACHE_KEYS.meetupEvents, mapped);
-      setEvents(mapped);
-      setLoading(false);
-    });
-
-    return () => { cancelled = true; };
-  }, []);
-
-  return { events, loading, error };
 }
 
 // ─── YouTube Data API ─────────────────────────────────────────────────────────
@@ -1463,7 +1246,7 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
     : "All Resources";
 
   // Show loading indicator when viewing live-fetched content types
-  const liveTypes = new Set(["book", "podcast", "event", "video", "workshop", "retreat", "course"]);
+  const liveTypes = new Set(["book", "podcast", "video", "course"]);
   const showLiveLoader = liveLoading && (!initialType || liveTypes.has(initialType));
 
   return (
@@ -1584,21 +1367,17 @@ export default function App() {
   // Fetch live content from external APIs.
   const { books: apiBooks, loading: booksLoading }          = useBooks();
   const { podcasts: apiPodcasts, loading: podcastsLoading } = usePodcasts();
-  const { shows: apiListenNotes, loading: listenNotesLoading } = useListenNotesPodcasts();
-  const { events: apiMeetup, loading: meetupLoading }       = useMeetupEvents();
   const { videos: apiVideos, loading: videosLoading }       = useVideos();
-  const liveLoading = booksLoading || podcastsLoading || listenNotesLoading || meetupLoading || videosLoading;
+  const liveLoading = booksLoading || podcastsLoading || videosLoading;
 
-  // Merge all real API data. Each source is empty while its fetch is in flight.
+  // Merge all live API data. Each source stays empty until its fetch resolves.
+  // To add a new source: call its hook above, add it here, and include in liveLoading.
   const allItems = useMemo(() => {
-    const books       = booksLoading       ? [] : apiBooks;
-    const podcasts    = podcastsLoading    ? [] : apiPodcasts;
-    const listenNotes = listenNotesLoading ? [] : apiListenNotes;
-    const meetup      = meetupLoading      ? [] : apiMeetup;
-    const videos      = videosLoading      ? [] : apiVideos;
-    return [...books, ...podcasts, ...listenNotes, ...meetup, ...videos];
-  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading,
-      apiListenNotes, listenNotesLoading, apiMeetup, meetupLoading, apiVideos, videosLoading]);
+    const books    = booksLoading    ? [] : apiBooks;
+    const podcasts = podcastsLoading ? [] : apiPodcasts;
+    const videos   = videosLoading   ? [] : apiVideos;
+    return [...books, ...podcasts, ...videos];
+  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => {
