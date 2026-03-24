@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { FILTER_OPTIONS, CATEGORY_META, SUBTOPIC_META, CONTENT_TYPES } from "./data";
 import "./App.css";
 
@@ -82,6 +82,52 @@ function readCache(key, ttl = CACHE_TTL) {
 function writeCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); }
   catch {} // storage full or private mode — fail silently, keep working
+}
+
+// ─── useApiCache ──────────────────────────────────────────────────────────────
+// Generic hook that wraps any async fetcher with localStorage caching.
+//
+// Usage:
+//   const { data, loading, error } = useApiCache(cacheKey, fetcherFn, { enabled, ttl });
+//
+// - cacheKey  : string  — the localStorage key to use
+// - fetcherFn : () => Promise<Item[]>  — called only on a cache miss
+// - enabled   : bool (default true)  — set false to skip fetch entirely (e.g. missing API key)
+// - ttl       : ms (default CACHE_TTL = 24h)
+//
+// On mount:
+//   fresh cache found  → returns cached data, loading=false, no network call
+//   no cache / expired → calls fetcherFn, writes result to cache, sets loading=false
+//
+// The fetcher ref pattern keeps the dependency array stable so the effect
+// runs exactly once, regardless of how fetcherFn is written at the call site.
+function useApiCache(cacheKey, fetcherFn, { ttl = CACHE_TTL, enabled = true } = {}) {
+  const fetcherRef = useRef(fetcherFn);
+  fetcherRef.current = fetcherFn;
+
+  const [state, setState] = useState(() => {
+    if (!enabled) return { data: [], loading: false, error: null };
+    const cached = readCache(cacheKey, ttl);
+    return { data: cached ?? [], loading: cached === null, error: null };
+  });
+
+  useEffect(() => {
+    if (!enabled || state.data.length > 0) return; // disabled or cache hit — nothing to do
+    let cancelled = false;
+    fetcherRef.current()
+      .then((data) => {
+        if (cancelled) return;
+        writeCache(cacheKey, data);
+        setState({ data, loading: false, error: null });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setState((prev) => ({ ...prev, loading: false, error: err.message }));
+      });
+    return () => { cancelled = true; };
+  }, []); // intentionally empty — runs once on mount only
+
+  return state;
 }
 
 // ─── Google Books API ─────────────────────────────────────────────────────────
@@ -193,39 +239,31 @@ function googleBookToItem(vol) {
 // Checks localStorage cache first. Only hits the API if cache is missing or older than 24h.
 // maxResults bumped to 40 (Google Books max) to get better coverage per request.
 function useBooks() {
-  const [books, setBooks]   = useState(() => readCache(CACHE_KEYS.books) ?? []);
-  const [loading, setLoading] = useState(() => readCache(CACHE_KEYS.books) === null);
-
-  useEffect(() => {
-    if (books.length > 0) return; // cache hit — skip all network requests
-    let cancelled = false;
-    Promise.all(
-      BOOKS_QUERIES.map((q) =>
-        fetch(
-          `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=40&langRestrict=en&printType=books`
+  const { data: books, loading } = useApiCache(
+    CACHE_KEYS.books,
+    () =>
+      Promise.all(
+        BOOKS_QUERIES.map((q) =>
+          fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=40&langRestrict=en&printType=books`
+          )
+            .then((r) => r.json())
+            .catch(() => ({ items: [] }))
         )
-          .then((r) => r.json())
-          .catch(() => ({ items: [] }))
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const seen = new Set();
-      const mapped = [];
-      results.forEach((res) => {
-        (res.items || []).forEach((vol) => {
-          if (!seen.has(vol.id) && vol.volumeInfo?.title) {
-            seen.add(vol.id);
-            mapped.push(googleBookToItem(vol));
-          }
+      ).then((results) => {
+        const seen   = new Set();
+        const mapped = [];
+        results.forEach((res) => {
+          (res.items || []).forEach((vol) => {
+            if (!seen.has(vol.id) && vol.volumeInfo?.title) {
+              seen.add(vol.id);
+              mapped.push(googleBookToItem(vol));
+            }
+          });
         });
-      });
-      writeCache(CACHE_KEYS.books, mapped);
-      setBooks(mapped);
-      setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
+        return mapped;
+      })
+  );
   return { books, loading };
 }
 
@@ -332,39 +370,31 @@ function itunesPodcastToItem(podcast) {
 
 // Checks localStorage cache first. Only hits iTunes if cache is missing or older than 24h.
 function usePodcasts() {
-  const [podcasts, setPodcasts] = useState(() => readCache(CACHE_KEYS.podcasts) ?? []);
-  const [loading, setLoading]   = useState(() => readCache(CACHE_KEYS.podcasts) === null);
-
-  useEffect(() => {
-    if (podcasts.length > 0) return; // cache hit — skip all network requests
-    let cancelled = false;
-    Promise.all(
-      PODCAST_QUERIES.map((q) =>
-        fetch(
-          `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${encodeURIComponent(q)}&limit=20`
+  const { data: podcasts, loading } = useApiCache(
+    CACHE_KEYS.podcasts,
+    () =>
+      Promise.all(
+        PODCAST_QUERIES.map((q) =>
+          fetch(
+            `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${encodeURIComponent(q)}&limit=20`
+          )
+            .then((r) => r.json())
+            .catch(() => ({ results: [] }))
         )
-          .then((r) => r.json())
-          .catch(() => ({ results: [] }))
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const seen = new Set();
-      const mapped = [];
-      results.forEach((res) => {
-        (res.results || []).forEach((podcast) => {
-          if (!seen.has(podcast.collectionId) && podcast.collectionName) {
-            seen.add(podcast.collectionId);
-            mapped.push(itunesPodcastToItem(podcast));
-          }
+      ).then((results) => {
+        const seen   = new Set();
+        const mapped = [];
+        results.forEach((res) => {
+          (res.results || []).forEach((podcast) => {
+            if (!seen.has(podcast.collectionId) && podcast.collectionName) {
+              seen.add(podcast.collectionId);
+              mapped.push(itunesPodcastToItem(podcast));
+            }
+          });
         });
-      });
-      writeCache(CACHE_KEYS.podcasts, mapped);
-      setPodcasts(mapped);
-      setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
+        return mapped;
+      })
+  );
   return { podcasts, loading };
 }
 
@@ -515,53 +545,39 @@ function youtubeToItem(video, hint = "video") {
 
 function useVideos() {
   const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY;
+  if (!apiKey) console.warn("[Grow] VITE_YOUTUBE_API_KEY is not set");
 
-  const [videos, setVideos]   = useState(() =>
-    apiKey ? (readCache(CACHE_KEYS.videos) ?? []) : []
-  );
-  const [loading, setLoading] = useState(() =>
-    !!apiKey && readCache(CACHE_KEYS.videos) === null
-  );
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!apiKey) { console.warn("[Grow] VITE_YOUTUBE_API_KEY is not set"); return; }
-    if (videos.length > 0) return; // cache hit
-
-    let cancelled = false;
-
-    Promise.all(
-      YOUTUBE_QUERIES.map(({ q, hint }) =>
-        fetch(
-          `https://www.googleapis.com/youtube/v3/search` +
-          `?part=snippet&type=video&q=${encodeURIComponent(q)}` +
-          `&maxResults=20&relevanceLanguage=en&key=${apiKey}`
+  const { data: videos, loading, error } = useApiCache(
+    CACHE_KEYS.videos,
+    () =>
+      Promise.all(
+        YOUTUBE_QUERIES.map(({ q, hint }) =>
+          fetch(
+            `https://www.googleapis.com/youtube/v3/search` +
+            `?part=snippet&type=video&q=${encodeURIComponent(q)}` +
+            `&maxResults=20&relevanceLanguage=en&key=${apiKey}`
+          )
+            .then((r) => r.json())
+            .then((data) => ({ data, hint }))
+            .catch((e) => { console.error("[Grow] YouTube fetch failed:", e.message); return { data: { items: [] }, hint }; })
         )
-          .then((r) => r.json())
-          .then((data) => ({ data, hint }))
-          .catch((e) => { console.error("[Grow] YouTube fetch failed:", e.message); return { data: { items: [] }, hint }; })
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const seen   = new Set();
-      const mapped = [];
-      results.forEach(({ data, hint }) => {
-        if (data.error) { const msg = data.error.message; setError(msg); console.error("[Grow] YouTube API error:", msg); return; }
-        (data.items || []).forEach((video) => {
-          const videoId = video.id?.videoId;
-          if (videoId && !seen.has(videoId) && video.snippet?.title) {
-            seen.add(videoId);
-            mapped.push(youtubeToItem(video, hint));
-          }
+      ).then((results) => {
+        const seen   = new Set();
+        const mapped = [];
+        results.forEach(({ data, hint }) => {
+          if (data.error) { console.error("[Grow] YouTube API error:", data.error.message); return; }
+          (data.items || []).forEach((video) => {
+            const videoId = video.id?.videoId;
+            if (videoId && !seen.has(videoId) && video.snippet?.title) {
+              seen.add(videoId);
+              mapped.push(youtubeToItem(video, hint));
+            }
+          });
         });
-      });
-      writeCache(CACHE_KEYS.videos, mapped);
-      setVideos(mapped);
-      setLoading(false);
-    });
-
-    return () => { cancelled = true; };
-  }, [apiKey]);
+        return mapped;
+      }),
+    { enabled: !!apiKey }
+  );
 
   return { videos, loading, error };
 }
