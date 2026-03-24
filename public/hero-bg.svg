@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="55%" r="70%">
+      <stop offset="0%" stop-color="#2A4A44"/>
+      <stop offset="60%" stop-color="#162E2A"/>
+      <stop offset="100%" stop-color="#0A1A18"/>
+    </radialGradient>
+    <radialGradient id="pad" cx="38%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#4E7A5A"/>
+      <stop offset="100%" stop-color="#1C3824"/>
+    </radialGradient>
+    <radialGradient id="op" cx="50%" cy="85%" r="65%">
+      <stop offset="0%" stop-color="#FDF0EC"/>
+      <stop offset="100%" stop-color="#DFA898"/>
+    </radialGradient>
+    <radialGradient id="mp" cx="50%" cy="85%" r="65%">
+      <stop offset="0%" stop-color="#F8DDD8"/>
+      <stop offset="100%" stop-color="#C88878"/>
+    </radialGradient>
+    <radialGradient id="ip" cx="50%" cy="85%" r="65%">
+      <stop offset="0%" stop-color="#F2C8C0"/>
+      <stop offset="100%" stop-color="#B86858"/>
+    </radialGradient>
+    <radialGradient id="cen" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#F8E870"/>
+      <stop offset="100%" stop-color="#C89820"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F8E0D0" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#F8E0D0" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft">
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
+    <filter id="softer">
+      <feGaussianBlur stdDeviation="2.5"/>
+    </filter>
+  </defs>
+
+  <!-- Water background -->
+  <rect width="800" height="800" fill="url(#bg)"/>
+
+  <!-- Subtle water shimmer lines -->
+  <ellipse cx="400" cy="400" rx="380" ry="60" fill="none" stroke="#3A6860" stroke-width="1" opacity="0.18"/>
+  <ellipse cx="400" cy="400" rx="300" ry="46" fill="none" stroke="#3A6860" stroke-width="1" opacity="0.14"/>
+  <ellipse cx="400" cy="400" rx="220" ry="34" fill="none" stroke="#3A6860" stroke-width="1" opacity="0.10"/>
+  <ellipse cx="400" cy="400" rx="140" ry="22" fill="none" stroke="#3A6860" stroke-width="1" opacity="0.08"/>
+
+  <!-- Soft ambient glow under flower -->
+  <ellipse cx="400" cy="430" rx="220" ry="120" fill="url(#glow)" filter="url(#softer)"/>
+
+  <!-- Lily pad -->
+  <ellipse cx="410" cy="530" rx="230" ry="118" fill="url(#pad)" opacity="0.92"/>
+  <!-- Lily pad veins -->
+  <g opacity="0.28" stroke="#1A3820" stroke-width="1.2" fill="none">
+    <line x1="410" y1="530" x2="410" y2="412"/>
+    <line x1="410" y1="530" x2="260" y2="468"/>
+    <line x1="410" y1="530" x2="560" y2="468"/>
+    <line x1="410" y1="530" x2="200" y2="518"/>
+    <line x1="410" y1="530" x2="620" y2="518"/>
+    <line x1="410" y1="530" x2="230" y2="590"/>
+    <line x1="410" y1="530" x2="590" y2="590"/>
+  </g>
+  <!-- Lily pad notch -->
+  <path d="M410,530 L384,413 Q410,395 436,413 Z" fill="#0A1A18"/>
+  <!-- Lily pad edge highlight -->
+  <ellipse cx="410" cy="530" rx="230" ry="118" fill="none" stroke="#5A9060" stroke-width="1.5" opacity="0.22"/>
+
+  <!-- ── LOTUS FLOWER centred at 400, 400 ── -->
+
+  <!-- OUTER PETALS  (12 × 30°) tip at 148px -->
+  <g fill="url(#op)" opacity="0.88" filter="url(#soft)">
+    <g transform="translate(400,400) rotate(0)">   <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(30)">  <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(60)">  <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(90)">  <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(120)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(150)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(180)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(210)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(240)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(270)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(300)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(330)"> <path d="M0,0 C20,-52 24,-96 0,-148 C-24,-96 -20,-52 0,0 Z"/></g>
+  </g>
+
+  <!-- MIDDLE PETALS  (8 × 45°, offset 22.5°) tip at 112px -->
+  <g fill="url(#mp)" opacity="0.92" filter="url(#soft)">
+    <g transform="translate(400,400) rotate(22.5)">  <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(67.5)">  <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(112.5)"> <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(157.5)"> <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(202.5)"> <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(247.5)"> <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(292.5)"> <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(337.5)"> <path d="M0,0 C17,-40 20,-76 0,-112 C-20,-76 -17,-40 0,0 Z"/></g>
+  </g>
+
+  <!-- INNER PETALS  (6 × 60°) tip at 76px -->
+  <g fill="url(#ip)" opacity="0.95">
+    <g transform="translate(400,400) rotate(0)">   <path d="M0,0 C13,-28 15,-54 0,-76 C-15,-54 -13,-28 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(60)">  <path d="M0,0 C13,-28 15,-54 0,-76 C-15,-54 -13,-28 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(120)"> <path d="M0,0 C13,-28 15,-54 0,-76 C-15,-54 -13,-28 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(180)"> <path d="M0,0 C13,-28 15,-54 0,-76 C-15,-54 -13,-28 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(240)"> <path d="M0,0 C13,-28 15,-54 0,-76 C-15,-54 -13,-28 0,0 Z"/></g>
+    <g transform="translate(400,400) rotate(300)"> <path d="M0,0 C13,-28 15,-54 0,-76 C-15,-54 -13,-28 0,0 Z"/></g>
+  </g>
+
+  <!-- STAMEN ring — small dots -->
+  <g fill="#D8A030" opacity="0.9">
+    <circle cx="400" cy="369" r="2.5"/>
+    <circle cx="411" cy="371" r="2.5"/>
+    <circle cx="420" cy="378" r="2.5"/>
+    <circle cx="389" cy="371" r="2.5"/>
+    <circle cx="380" cy="378" r="2.5"/>
+    <circle cx="376" cy="389" r="2.5"/>
+    <circle cx="424" cy="389" r="2.5"/>
+    <circle cx="421" cy="400" r="2"/>
+    <circle cx="379" cy="400" r="2"/>
+    <circle cx="406" cy="366" r="2"/>
+    <circle cx="394" cy="366" r="2"/>
+  </g>
+
+  <!-- CENTRE disc -->
+  <circle cx="400" cy="400" r="22" fill="url(#cen)" opacity="0.96"/>
+  <circle cx="400" cy="400" r="22" fill="none" stroke="#C89020" stroke-width="1.2" opacity="0.6"/>
+  <!-- Centre texture dots -->
+  <g fill="#A87010" opacity="0.55">
+    <circle cx="400" cy="393" r="2"/><circle cx="407" cy="396" r="1.8"/>
+    <circle cx="406" cy="404" r="2"/><circle cx="399" cy="407" r="1.8"/>
+    <circle cx="393" cy="404" r="2"/><circle cx="392" cy="396" r="1.8"/>
+    <circle cx="400" cy="400" r="2.5"/>
+  </g>
+
+  <!-- Reflection on water -->
+  <ellipse cx="400" cy="600" rx="90" ry="28" fill="#FBE8E0" opacity="0.04" filter="url(#softer)"/>
+</svg>

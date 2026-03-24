@@ -35,7 +35,7 @@ body {
   padding: 48px 24px 36px;
   background:
     linear-gradient(180deg, rgba(30, 18, 8, 0.48) 0%, rgba(80, 45, 15, 0.38) 100%),
-    url('/hero-bg.jpg') center/cover no-repeat;
+    url('/hero-bg.svg') center/cover no-repeat;
   text-align: center;
 }
 
@@ -362,7 +362,7 @@ body {
   padding: 16px 20px 14px;
   background:
     linear-gradient(180deg, rgba(30, 18, 8, 0.58) 0%, rgba(80, 45, 15, 0.48) 100%),
-    url('/hero-bg.jpg') center 40%/cover no-repeat;
+    url('/hero-bg.svg') center 40%/cover no-repeat;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1189,7 +1189,7 @@ body {
   padding: 44px 24px 32px;
   background:
     linear-gradient(180deg, rgba(30, 18, 8, 0.52) 0%, rgba(80, 45, 15, 0.42) 100%),
-    url('/hero-bg.jpg') center/cover no-repeat;
+    url('/hero-bg.svg') center/cover no-repeat;
   text-align: center;
 }
 
