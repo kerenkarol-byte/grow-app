@@ -65,12 +65,12 @@ const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
 const CACHE_KEYS = {
-  books:         "grow-books-v5",
-  podcasts:      "grow-podcasts-v5",
-  events:        "grow-events-v5",
-  videos:        "grow-videos-v5",
-  spotifyShows:  "grow-spotify-shows-v5",
-  spotifyToken:  "grow-spotify-token-v5",
+  books:         "grow-books-v6",
+  podcasts:      "grow-podcasts-v6",
+  events:        "grow-events-v6",
+  videos:        "grow-videos-v6",
+  spotifyShows:  "grow-spotify-shows-v6",
+  spotifyToken:  "grow-spotify-token-v6",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -579,10 +579,15 @@ function eventbriteToItem(ev) {
   // Minimum ticket price if the event is paid
   const priceDisplay = ev.ticket_availability?.minimum_ticket_price?.display || null;
 
+  const t = text.toLowerCase();
+  const evType = /\bretreat\b/.test(t) ? "retreat"
+               : /\bworkshop\b/.test(t) ? "workshop"
+               : "event";
+
   return {
     id:          `eb-${ev.id}`,
     title:       name || "Untitled Event",
-    type:        "event",
+    type:        evType,
     category,
     subcategory: mapEventSubcategory(text, category),
     method:      mapEventMethod(text),
@@ -667,6 +672,8 @@ const YOUTUBE_QUERIES = [
   "career leadership coaching",
   "financial wellness money tips",
   "parenting family wellbeing",
+  "personal development full course",
+  "mindfulness meditation complete course",
 ];
 
 // Infer a structured subtype from the video title + description text.
@@ -688,11 +695,14 @@ function youtubeToItem(video) {
   const text    = `${title} ${desc}`;
   const category = mapEventCategory(text);
 
+  const subtype = mapVideoSubtype(text);
+  const vidType = subtype === "course" ? "course" : "video";
+
   return {
     id:           `yt-${video.id.videoId}`,
     title:        title || "Untitled Video",
-    type:         "video",
-    subtype:      mapVideoSubtype(text),
+    type:         vidType,
+    subtype:      vidType === "course" ? null : subtype,
     category,
     subcategory:  mapEventSubcategory(text, category),
     method:       mapEventMethod(text),
