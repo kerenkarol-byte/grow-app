@@ -958,6 +958,42 @@ body {
   transform: translateY(-1px);
 }
 
+/* ===== Podcast platform links ===== */
+.podcast-links {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.platform-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.15s;
+  letter-spacing: 0.2px;
+}
+
+.platform-btn:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.platform-btn--apple {
+  background: #F0E8DC;
+  color: #7B4E28;
+}
+
+.platform-btn--spotify {
+  background: #D8EDD8;
+  color: #1A6030;
+}
+
 /* ===== Empty state ===== */
 .empty-state {
   padding: 48px 24px;

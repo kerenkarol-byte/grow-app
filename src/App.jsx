@@ -65,12 +65,12 @@ const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
 const CACHE_KEYS = {
-  books:         "grow-books-v2",
-  podcasts:      "grow-podcasts-v2",
-  events:        "grow-events-v2",
-  videos:        "grow-videos-v2",
-  spotifyShows:  "grow-spotify-shows-v2",
-  spotifyToken:  "grow-spotify-token-v2",
+  books:         "grow-books-v3",
+  podcasts:      "grow-podcasts-v3",
+  events:        "grow-events-v3",
+  videos:        "grow-videos-v3",
+  spotifyShows:  "grow-spotify-shows-v3",
+  spotifyToken:  "grow-spotify-token-v3",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -328,6 +328,7 @@ function itunesPodcastToItem(podcast) {
     ratingCount: podcast.userRatingCount || null,
     releaseDate: podcast.releaseDate || null,
     link: podcast.collectionViewUrl || podcast.trackViewUrl || null,
+    spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(podcast.collectionName || "")}/shows`,
     description: desc,
     thumbnail: podcast.artworkUrl600 || podcast.artworkUrl100 || null,
     source: "iTunes",
@@ -418,6 +419,7 @@ function spotifyShowToItem(show) {
     rating:      4.3,
     ratingCount: null,
     link:        show.external_urls?.spotify || null,
+    appleUrl:    `https://podcasts.apple.com/search?term=${encodeURIComponent(show.name || "")}`,
     description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
     thumbnail:   show.images?.[0]?.url || null,
     source:      "Spotify",
@@ -1080,7 +1082,28 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
         <span className="rating-num">{item.rating} / 5</span>
         {item.ratingCount && <span className="rating-count">· {fmtCount(item.ratingCount)} ratings</span>}
       </div>
-      {item.link && (
+      {item.type === "podcast" ? (
+        <div className="podcast-links">
+          {item.link && (
+            <a className="platform-btn platform-btn--apple" href={item.link}
+              target="_blank" rel="noopener noreferrer">
+              Apple Podcasts →
+            </a>
+          )}
+          {item.spotifyUrl && (
+            <a className="platform-btn platform-btn--spotify" href={item.spotifyUrl}
+              target="_blank" rel="noopener noreferrer">
+              Spotify →
+            </a>
+          )}
+          {item.appleUrl && (
+            <a className="platform-btn platform-btn--apple" href={item.appleUrl}
+              target="_blank" rel="noopener noreferrer">
+              Apple Podcasts →
+            </a>
+          )}
+        </div>
+      ) : item.link && (
         <a className="visit-btn" href={item.link} target="_blank" rel="noopener noreferrer">
           Visit →
         </a>
