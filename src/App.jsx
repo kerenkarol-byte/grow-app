@@ -98,9 +98,8 @@ function writeCache(key, data) {
 //      run a deterministic Fisher-Yates shuffle, slice the top N items,
 //      persist to localStorage with a new timestamp, return the selection.
 //
-// Result: same selection all day for any given user; a different selection
+// Result: same ordering all day for any given user; a different ordering
 // the next day (or whenever the 24h TTL expires).
-const CURATED_DAILY_COUNT = 15; // show 15 of 27 items; rotates daily
 
 // Minimal linear-congruential generator — deterministic, no dependencies.
 // Returns a function that produces pseudo-random floats in [0, 1).
@@ -130,8 +129,7 @@ function getDailyCurated() {
 
   // UTC day number changes at midnight UTC — use as a repeatable daily seed.
   const daySeed  = Math.floor(Date.now() / CACHE_TTL);
-  const shuffled = seededShuffle(CURATED_ITEMS, daySeed);
-  const selection = shuffled.slice(0, CURATED_DAILY_COUNT);
+  const selection = seededShuffle(CURATED_ITEMS, daySeed); // all items, new order each day
 
   writeCache(CACHE_KEYS.curated, selection);
   return selection;
@@ -851,10 +849,8 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
             {item.isCurated && (
               <span className="curated-badge">✦ Editor's Pick</span>
             )}
-            {item.source && (
-              <span className={`source-badge${item.isCurated ? " source-badge--curated" : ""}`}>
-                {item.source}
-              </span>
+            {item.source && !item.isCurated && (
+              <span className="source-badge">{item.source}</span>
             )}
           </div>
           <h2 className="card-title">{item.title}</h2>
