@@ -814,7 +814,7 @@ function useRecommendations(allItems, favorites, viewedItems, interests) {
   }, [allItems, favorites, viewedItems, interests]);
 }
 
-// ─── Sort dropdown ────────────────────────────────────────────────────────────
+// ─── Sort dropdown (compact icon button) ─────────────────────────────────────
 const SORT_OPTIONS = [
   { value: "relevant", label: "Most relevant" },
   { value: "rating",   label: "Highest rated" },
@@ -825,13 +825,19 @@ function SortDropdown({ value, onChange, isOpen, onToggle }) {
   const active = value !== "relevant";
   const label  = SORT_OPTIONS.find((o) => o.value === value)?.label ?? "Sort";
   return (
-    <div className="dropdown-wrapper">
-      <button className={`dropdown-trigger${active ? " active" : ""}`} onClick={onToggle}>
-        {active ? label : "Sort"}
-        <span className="chevron">{isOpen ? "▲" : "▼"}</span>
+    <div className="dropdown-wrapper sort-compact">
+      <button className={`sort-icon-btn${active ? " active" : ""}`}
+        onClick={onToggle} title={label} aria-label={`Sort: ${label}`}>
+        <svg width="15" height="13" viewBox="0 0 15 13" fill="none"
+          stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <line x1="0" y1="1.5" x2="15" y2="1.5"/>
+          <line x1="0" y1="6.5" x2="10" y2="6.5"/>
+          <line x1="0" y1="11.5" x2="5" y2="11.5"/>
+        </svg>
+        {active && <span className="sort-active-label">{label}</span>}
       </button>
       {isOpen && (
-        <div className="dropdown-menu">
+        <div className="dropdown-menu dropdown-menu--right">
           {SORT_OPTIONS.map((opt) => (
             <button key={opt.value}
               className={`rating-option${value === opt.value ? " selected" : ""}`}
@@ -1418,8 +1424,6 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
       </div>
 
       <div className="filters-row" onClick={(e) => e.stopPropagation()}>
-        <SortDropdown value={sortBy} onChange={setSortBy}
-          isOpen={openDropdown === "sort"} onToggle={() => toggleDropdown("sort")} />
         {!initialCategory && (
           <MultiSelectDropdown label="Category" options={FILTER_OPTIONS.category}
             selected={filters.category} onChange={setFilter("category")}
@@ -1452,7 +1456,11 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
         <p className="loading-books">Loading live content…</p>
       )}
 
-      <p className="results-count">{sorted.length} result{sorted.length !== 1 ? "s" : ""}</p>
+      <div className="results-bar" onClick={(e) => e.stopPropagation()}>
+        <p className="results-count">{sorted.length} result{sorted.length !== 1 ? "s" : ""}</p>
+        <SortDropdown value={sortBy} onChange={setSortBy}
+          isOpen={openDropdown === "sort"} onToggle={() => toggleDropdown("sort")} />
+      </div>
 
       {sorted.length === 0 ? (
         <div className="empty-state">No results found. Try adjusting your filters.</div>

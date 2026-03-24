@@ -657,9 +657,57 @@ body {
   background: #EDE0C8;
 }
 
+/* ===== Results bar (count + sort icon) ===== */
+.results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 6px;
+}
+
+.sort-compact {
+  position: relative;
+}
+
+.sort-icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: #A08060;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sort-icon-btn:hover {
+  background: #F0E8DC;
+  color: #6A4828;
+}
+
+.sort-icon-btn.active {
+  background: #EDE0CC;
+  color: #7B4E28;
+  border-color: #D4C0A0;
+}
+
+.sort-active-label {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dropdown-menu--right {
+  left: auto;
+  right: 0;
+}
+
 /* ===== Results count ===== */
 .results-count {
-  padding: 0 16px 8px;
+  padding: 0;
   font-size: 12px;
   color: #A08060;
   font-weight: 500;
