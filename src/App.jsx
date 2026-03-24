@@ -64,11 +64,11 @@ const TYPE_ICONS = {
 const CACHE_TTL        = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_KEYS = {
-  books:        "grow-books-v8",
-  podcasts:     "grow-podcasts-v8",
-  events:       "grow-events-v8",
-  videos:       "grow-videos-v8",
-  listenNotes:  "grow-listennotes-v8",
+  books:        "grow-books-v9",
+  podcasts:     "grow-podcasts-v9",
+  meetupEvents: "grow-meetup-v9",
+  videos:       "grow-videos-v9",
+  listenNotes:  "grow-listennotes-v9",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -456,23 +456,20 @@ function useListenNotesPodcasts() {
   return { shows, loading, error };
 }
 
-// ─── Eventbrite API ───────────────────────────────────────────────────────────
-// Token is read from the VITE_EVENTBRITE_TOKEN environment variable.
-// Add it to a .env.local file at the project root — see README or inline docs.
-// Results are cached for 6h (events change faster than books/podcasts).
-//
-// Eventbrite search endpoint:
-//   GET https://www.eventbriteapi.com/v3/events/search/
-//   Authorization: Bearer {token}
-const EVENTS_QUERIES = [
-  { q: "personal growth mindfulness retreat",    hint: "retreat"  },
-  { q: "yoga wellness retreat",                  hint: "retreat"  },
-  { q: "stress burnout wellness workshop",       hint: "workshop" },
-  { q: "relationships communication workshop",   hint: "workshop" },
-  { q: "career leadership coaching workshop",    hint: "workshop" },
-  { q: "productivity habits workshop",           hint: "workshop" },
-  { q: "financial wellness money workshop",      hint: "workshop" },
-  { q: "personal development seminar",           hint: "workshop" },
+// ─── Meetup Events API ────────────────────────────────────────────────────────
+// Requires VITE_MEETUP_KEY in .env.local.
+// Get a Bearer token at: meetup.com → Account → Getting Started with OAuth
+// or the legacy key page: secure.meetup.com/meetup_api/key/
+// Results cached for 6h — events change more often than books/podcasts.
+const MEETUP_QUERIES = [
+  "personal growth mindfulness retreat",
+  "wellness stress management workshop",
+  "relationships communication workshop",
+  "career professional development workshop",
+  "productivity habits focus workshop",
+  "financial literacy money workshop",
+  "parenting family wellbeing meetup",
+  "yoga meditation wellness retreat",
 ];
 
 function mapEventCategory(text) {
@@ -542,109 +539,129 @@ function mapEventMethod(text) {
   return "coaching";
 }
 
-function eventbriteToItem(ev, hint = "event") {
-  const name = ev.name?.text || "";
-  const desc = ev.description?.text || "";
-  const text = `${name} ${desc}`;
+function meetupEventToItem(ev) {
+  const text = `${ev.title || ""} ${ev.description || ""}`;
   const category = mapEventCategory(text);
-
-  // Build a readable location string from the venue expand
-  const venue = ev.venue;
-  let location = null;
-  if (ev.online_event) {
-    location = "Online";
-  } else if (venue) {
-    const parts = [venue.address?.city, venue.address?.region].filter(Boolean);
-    location = parts.length ? parts.join(", ") : venue.name || null;
-  }
-
-  // Prefer the high-res original image if available
-  const thumbnail = ev.logo?.original?.url || ev.logo?.url || null;
-
-  // Minimum ticket price if the event is paid
-  const priceDisplay = ev.ticket_availability?.minimum_ticket_price?.display || null;
-
   const t = text.toLowerCase();
   const evType = /\bretreat\b|\bgetaway\b|\bimmersion\b/.test(t) ? "retreat"
                : /\bworkshop\b|\bmasterclass\b|\bseminar\b|\bintensive\b|\btraining\b/.test(t) ? "workshop"
-               : hint;
+               : "event";
+
+  let location = null;
+  if (ev.isOnline) {
+    location = "Online";
+  } else if (ev.venue) {
+    const parts = [ev.venue.city, ev.venue.state].filter(Boolean);
+    location = parts.length ? parts.join(", ") : ev.venue.name || null;
+  }
+
+  const photo = ev.featuredEventPhoto;
+  const thumbnail = photo?.highResUrl || photo?.baseUrl || null;
+  const desc = ev.description || "";
 
   return {
-    id:          `eb-${ev.id}`,
-    title:       name || "Untitled Event",
+    id:          `mu-${ev.id}`,
+    title:       ev.title || "Untitled Event",
     type:        evType,
     category,
     subcategory: mapEventSubcategory(text, category),
     method:      mapEventMethod(text),
-    priceType:   ev.is_free ? "free" : "paid",
-    price:       priceDisplay,
-    rating:      4.5,      // Eventbrite doesn't expose ratings
+    priceType:   "free",
+    price:       null,
+    rating:      4.5,
     ratingCount: null,
-    date:        ev.start?.local?.split("T")[0] || null,
+    date:        ev.dateTime ? ev.dateTime.split("T")[0] : null,
     location,
     description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
     thumbnail,
-    link:        ev.url || null,
-    source:      "Eventbrite",
+    link:        ev.eventUrl || null,
+    source:      "Meetup",
   };
 }
 
-// Fetches upcoming personal-growth events from Eventbrite.
-// Requires VITE_EVENTBRITE_TOKEN in .env.local.
-// Returns { events, loading } — same shape as useBooks / usePodcasts.
-function useEvents() {
-  const token = import.meta.env.VITE_EVENTBRITE_TOKEN;
+// Fetches upcoming personal-growth events from Meetup via the GraphQL API.
+// Requires VITE_MEETUP_KEY in .env.local.
+function useMeetupEvents() {
+  const apiKey = import.meta.env.VITE_MEETUP_KEY;
 
   const [events, setEvents]   = useState(() =>
-    token ? (readCache(CACHE_KEYS.events, CACHE_TTL_EVENTS) ?? []) : []
+    apiKey ? (readCache(CACHE_KEYS.meetupEvents, CACHE_TTL_EVENTS) ?? []) : []
   );
   const [loading, setLoading] = useState(() =>
-    !!token && readCache(CACHE_KEYS.events, CACHE_TTL_EVENTS) === null
+    !!apiKey && readCache(CACHE_KEYS.meetupEvents, CACHE_TTL_EVENTS) === null
   );
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!token) return;          // no token → stay empty, no loading state
-    if (events.length > 0) return; // cache hit
-
+    if (!apiKey || events.length > 0) return;
     let cancelled = false;
-    const now = new Date().toISOString();
 
     Promise.all(
-      EVENTS_QUERIES.map(({ q, hint }) =>
-        fetch(
-          `https://www.eventbriteapi.com/v3/events/search/` +
-          `?q=${encodeURIComponent(q)}` +
-          `&expand=venue,ticket_availability` +
-          `&start_date.range_start=${encodeURIComponent(now)}` +
-          `&sort_by=date` +
-          `&page_size=20`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-          .then((r) => r.json())
-          .then((data) => ({ data, hint }))
-          .catch(() => ({ data: { events: [] }, hint }))
+      MEETUP_QUERIES.map((q) =>
+        fetch("https://api.meetup.com/gql", {
+          method:  "POST",
+          headers: {
+            "Content-Type":  "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            query: `
+              query ($q: String!) {
+                keywordSearch(
+                  input: { first: 20 }
+                  filter: { query: $q, source: EVENTS }
+                ) {
+                  edges {
+                    node {
+                      result {
+                        ... on Event {
+                          id
+                          title
+                          dateTime
+                          description
+                          isOnline
+                          eventUrl
+                          venue { name city state country }
+                          featuredEventPhoto { highResUrl baseUrl }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `,
+            variables: { q },
+          }),
+        })
+          .then((r) => {
+            if (!r.ok) throw new Error(`Meetup ${r.status}`);
+            return r.json();
+          })
+          .catch((e) => { setError(e.message); return { data: null }; })
       )
     ).then((results) => {
       if (cancelled) return;
       const seen   = new Set();
       const mapped = [];
-      results.forEach(({ data, hint }) => {
-        (data.events || []).forEach((ev) => {
-          if (!seen.has(ev.id) && ev.name?.text) {
-            seen.add(ev.id);
-            mapped.push(eventbriteToItem(ev, hint));
-          }
+      const now    = new Date();
+      results.forEach((res) => {
+        (res?.data?.keywordSearch?.edges ?? []).forEach(({ node }) => {
+          const ev = node?.result;
+          if (!ev?.id || !ev?.title || seen.has(ev.id)) return;
+          if (ev.dateTime && new Date(ev.dateTime) < now) return; // skip past events
+          seen.add(ev.id);
+          mapped.push(meetupEventToItem(ev));
         });
       });
-      writeCache(CACHE_KEYS.events, mapped);
+      writeCache(CACHE_KEYS.meetupEvents, mapped);
       setEvents(mapped);
       setLoading(false);
     });
 
     return () => { cancelled = true; };
-  }, [token]);
+  }, []);
 
-  return { events, loading };
+  return { events, loading, error };
 }
 
 // ─── YouTube Data API ─────────────────────────────────────────────────────────
@@ -1568,20 +1585,20 @@ export default function App() {
   const { books: apiBooks, loading: booksLoading }          = useBooks();
   const { podcasts: apiPodcasts, loading: podcastsLoading } = usePodcasts();
   const { shows: apiListenNotes, loading: listenNotesLoading } = useListenNotesPodcasts();
-  const { events: apiEvents, loading: eventsLoading }       = useEvents();
+  const { events: apiMeetup, loading: meetupLoading }       = useMeetupEvents();
   const { videos: apiVideos, loading: videosLoading }       = useVideos();
-  const liveLoading = booksLoading || podcastsLoading || listenNotesLoading || eventsLoading || videosLoading;
+  const liveLoading = booksLoading || podcastsLoading || listenNotesLoading || meetupLoading || videosLoading;
 
   // Merge all real API data. Each source is empty while its fetch is in flight.
   const allItems = useMemo(() => {
     const books       = booksLoading       ? [] : apiBooks;
     const podcasts    = podcastsLoading    ? [] : apiPodcasts;
     const listenNotes = listenNotesLoading ? [] : apiListenNotes;
-    const events      = eventsLoading      ? [] : apiEvents;
+    const meetup      = meetupLoading      ? [] : apiMeetup;
     const videos      = videosLoading      ? [] : apiVideos;
-    return [...books, ...podcasts, ...listenNotes, ...events, ...videos];
+    return [...books, ...podcasts, ...listenNotes, ...meetup, ...videos];
   }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading,
-      apiListenNotes, listenNotesLoading, apiEvents, eventsLoading, apiVideos, videosLoading]);
+      apiListenNotes, listenNotesLoading, apiMeetup, meetupLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => {
