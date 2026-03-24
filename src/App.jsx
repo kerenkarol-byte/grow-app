@@ -63,9 +63,10 @@ const TYPE_ICONS = {
 // With 24h cache, each browser makes at most 5 requests per day regardless of reloads.
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_KEYS = {
-  books:    "grow-books-v10",
-  podcasts: "grow-podcasts-v10",
-  videos:   "grow-videos-v10",
+  books:    "grow-books-v11",
+  podcasts: "grow-podcasts-v11",
+  coursera: "grow-coursera-v11",
+  videos:   "grow-videos-v11",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -447,6 +448,80 @@ function mapEventMethod(text) {
   return "coaching";
 }
 
+// ─── Coursera API ─────────────────────────────────────────────────────────────
+// Public endpoint — no API key required.
+// Most courses are paid but include a free audit option.
+const COURSERA_QUERIES = [
+  "mindfulness stress anxiety mental health",
+  "personal development habits productivity",
+  "communication relationships emotional intelligence",
+  "leadership career management",
+  "financial literacy investing money",
+  "parenting child development",
+];
+
+function courseraToItem(course) {
+  const text = `${course.name || ""} ${course.description || ""}`;
+  const category = mapEventCategory(text);
+  const desc = course.description || "";
+  return {
+    id:          `co-${course.id}`,
+    title:       course.name || "Untitled Course",
+    type:        "course",
+    category,
+    subcategory: mapEventSubcategory(text, category),
+    method:      mapEventMethod(text),
+    priceType:   "paid",
+    price:       "Free audit",
+    rating:      4.5,
+    ratingCount: null,
+    link:        course.slug ? `https://www.coursera.org/learn/${course.slug}` : null,
+    description: desc.length > 320 ? desc.slice(0, 317) + "…" : desc || "No description available.",
+    thumbnail:   course.photoUrl || null,
+    source:      "Coursera",
+  };
+}
+
+function useCoursera() {
+  const [courses, setCourses] = useState(() => readCache(CACHE_KEYS.coursera) ?? []);
+  const [loading, setLoading] = useState(() => readCache(CACHE_KEYS.coursera) === null);
+
+  useEffect(() => {
+    if (courses.length > 0) return;
+    let cancelled = false;
+
+    Promise.all(
+      COURSERA_QUERIES.map((q) =>
+        fetch(
+          `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(q)}` +
+          `&limit=20&fields=name,slug,description,photoUrl,domainTypes`
+        )
+          .then((r) => r.json())
+          .catch(() => ({ elements: [] }))
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const seen   = new Set();
+      const mapped = [];
+      results.forEach((res) => {
+        (res.elements || []).forEach((course) => {
+          if (!seen.has(course.id) && course.name) {
+            seen.add(course.id);
+            mapped.push(courseraToItem(course));
+          }
+        });
+      });
+      writeCache(CACHE_KEYS.coursera, mapped);
+      setCourses(mapped);
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  return { courses, loading };
+}
+
 // ─── YouTube Data API ─────────────────────────────────────────────────────────
 // Token: VITE_YOUTUBE_API_KEY in .env.local
 // Quota: 10,000 units/day on the free tier; each search costs 100 units.
@@ -772,9 +847,7 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
             </span>
             {item.source && (
               <span className="source-badge">
-                {item.type === "podcast" && item.source === "Apple" ? "Apple · Spotify"
-                : item.type === "podcast" && item.source === "Spotify" ? "Spotify · Apple"
-                : item.source}
+                {item.source}
               </span>
             )}
           </div>
@@ -920,11 +993,7 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
           ...(item.date     ? [["Date",     fmtDate(item.date)]] : []),
           ["Method", item.method],
           ["Price",  item.price ?? (item.priceType === "paid" ? "Paid" : "Free")],
-          ...(item.source ? [["Source",
-            item.type === "podcast" && item.source === "Apple"   ? "Apple · Spotify" :
-            item.type === "podcast" && item.source === "Spotify" ? "Spotify · Apple" :
-            item.source
-          ]] : []),
+          ...(item.source ? [["Source", item.source]] : []),
         ].map(([label, value]) => (
           <div className="field-row" key={label}>
             <span className="field-label">{label}</span>
@@ -1367,17 +1436,20 @@ export default function App() {
   // Fetch live content from external APIs.
   const { books: apiBooks, loading: booksLoading }          = useBooks();
   const { podcasts: apiPodcasts, loading: podcastsLoading } = usePodcasts();
+  const { courses: apiCoursera, loading: courseraLoading }  = useCoursera();
   const { videos: apiVideos, loading: videosLoading }       = useVideos();
-  const liveLoading = booksLoading || podcastsLoading || videosLoading;
+  const liveLoading = booksLoading || podcastsLoading || courseraLoading || videosLoading;
 
   // Merge all live API data. Each source stays empty until its fetch resolves.
   // To add a new source: call its hook above, add it here, and include in liveLoading.
   const allItems = useMemo(() => {
     const books    = booksLoading    ? [] : apiBooks;
     const podcasts = podcastsLoading ? [] : apiPodcasts;
+    const coursera = courseraLoading ? [] : apiCoursera;
     const videos   = videosLoading   ? [] : apiVideos;
-    return [...books, ...podcasts, ...videos];
-  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading, apiVideos, videosLoading]);
+    return [...books, ...podcasts, ...coursera, ...videos];
+  }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading,
+      apiCoursera, courseraLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => {
