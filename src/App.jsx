@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { FILTER_OPTIONS, CATEGORY_META, SUBTOPIC_META, CONTENT_TYPES } from "./data";
+import { CURATED_ITEMS } from "./curated";
 import "./App.css";
 
 const TYPE_COLORS = {
@@ -784,7 +785,9 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
   const colors = TYPE_COLORS[item.type] || { background: "#eee", color: "#333" };
   const saved = favorites.has(item.id);
   return (
-    <article className="card" onClick={() => onClick(item)} tabIndex={0}
+    <article
+      className={`card${item.isCurated ? " card--curated" : ""}`}
+      onClick={() => onClick(item)} tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onClick(item)} role="button">
       <div className="card-body">
         <div className="card-main">
@@ -793,8 +796,11 @@ function ItemCard({ item, onClick, favorites, toggleFavorite }) {
             <span className="price-badge" data-price={item.priceType}>
               {item.priceType === "free" ? "Free" : item.price || "Paid"}
             </span>
+            {item.isCurated && (
+              <span className="curated-badge">✦ Editor's Pick</span>
+            )}
             {item.source && (
-              <span className="source-badge">
+              <span className={`source-badge${item.isCurated ? " source-badge--curated" : ""}`}>
                 {item.source}
               </span>
             )}
@@ -896,6 +902,9 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
         <span className="price-badge price-badge--lg" data-price={item.priceType}>
           {item.priceType === "free" ? "Free" : item.price || "Paid"}
         </span>
+        {item.isCurated && (
+          <span className="curated-badge">✦ Editor's Pick</span>
+        )}
       </div>
       {item.thumbnail && (
         <img className="detail-thumb" src={item.thumbnail} alt="" />
@@ -1225,7 +1234,21 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
   }, [searchText, filters, showSavedOnly, favorites, initialSubcategory, initialType, allItems]);
 
   const sorted = useMemo(() => {
-    if (sortBy === "relevant") return filtered;
+    if (sortBy === "relevant") {
+      // Interleave curated items into the regular feed: 1 curated per 4 regular.
+      // This gives curated items priority without making the feed feel artificial.
+      const curated = filtered.filter((i) => i.isCurated);
+      const regular = filtered.filter((i) => !i.isCurated);
+      if (!curated.length) return regular;
+      if (!regular.length) return curated;
+      const result = [];
+      let ci = 0, ri = 0;
+      while (ci < curated.length || ri < regular.length) {
+        for (let k = 0; k < 4 && ri < regular.length; k++) result.push(regular[ri++]);
+        if (ci < curated.length) result.push(curated[ci++]);
+      }
+      return result;
+    }
     const arr = [...filtered];
     if (sortBy === "rating") {
       arr.sort((a, b) => b.rating - a.rating || (b.ratingCount ?? 0) - (a.ratingCount ?? 0));
@@ -1387,13 +1410,13 @@ export default function App() {
   const { videos: apiVideos, loading: videosLoading }       = useVideos();
   const liveLoading = booksLoading || podcastsLoading || videosLoading;
 
-  // Merge all live API data. Each source stays empty until its fetch resolves.
+  // Merge curated + live API data. Curated items are always available immediately.
   // To add a new source: call its hook above, add it here, and include in liveLoading.
   const allItems = useMemo(() => {
     const books    = booksLoading    ? [] : apiBooks;
     const podcasts = podcastsLoading ? [] : apiPodcasts;
     const videos   = videosLoading   ? [] : apiVideos;
-    return [...books, ...podcasts, ...videos];
+    return [...CURATED_ITEMS, ...books, ...podcasts, ...videos];
   }, [apiBooks, booksLoading, apiPodcasts, podcastsLoading, apiVideos, videosLoading]);
 
   const toggleFavorite = (id) => {
