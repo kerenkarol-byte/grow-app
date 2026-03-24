@@ -65,12 +65,12 @@ const CACHE_TTL              = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL_EVENTS       =  6 * 60 * 60 * 1000; //  6 hours — events update more often
 const CACHE_TTL_SPOTIFY_TOKEN = 50 * 60 * 1000;      // 50 min — Spotify tokens expire after 1h
 const CACHE_KEYS = {
-  books:         "grow-books-v3",
-  podcasts:      "grow-podcasts-v3",
-  events:        "grow-events-v3",
-  videos:        "grow-videos-v3",
-  spotifyShows:  "grow-spotify-shows-v3",
-  spotifyToken:  "grow-spotify-token-v3",
+  books:         "grow-books-v4",
+  podcasts:      "grow-podcasts-v4",
+  events:        "grow-events-v4",
+  videos:        "grow-videos-v4",
+  spotifyShows:  "grow-spotify-shows-v4",
+  spotifyToken:  "grow-spotify-token-v4",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -328,10 +328,10 @@ function itunesPodcastToItem(podcast) {
     ratingCount: podcast.userRatingCount || null,
     releaseDate: podcast.releaseDate || null,
     link: podcast.collectionViewUrl || podcast.trackViewUrl || null,
-    spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(podcast.collectionName || "")}/shows`,
+    spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(podcast.collectionName || "")}`,
     description: desc,
     thumbnail: podcast.artworkUrl600 || podcast.artworkUrl100 || null,
-    source: "iTunes",
+    source: "Apple Podcasts",
   };
 }
 
@@ -1087,7 +1087,7 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
           {item.link && (
             <a className="platform-btn platform-btn--apple" href={item.link}
               target="_blank" rel="noopener noreferrer">
-              Apple Podcasts →
+              Apple →
             </a>
           )}
           {item.spotifyUrl && (
@@ -1099,7 +1099,7 @@ function DetailView({ item, onBack, favorites, toggleFavorite }) {
           {item.appleUrl && (
             <a className="platform-btn platform-btn--apple" href={item.appleUrl}
               target="_blank" rel="noopener noreferrer">
-              Apple Podcasts →
+              Apple →
             </a>
           )}
         </div>
@@ -1350,6 +1350,7 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
   const [searchText, setSearchText]     = useState(initialSearch);
   const [filters, setFilters]           = useState({
     category: initialCategory ? [initialCategory] : [],
+    type: [],
     method: [],
     priceType: "all",
     maxPrice: null,
@@ -1364,14 +1365,14 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
 
   const clearAll = () => {
     setSearchText("");
-    setFilters({ category: initialCategory ? [initialCategory] : [], method: [], priceType: "all", maxPrice: null, minRating: null });
+    setFilters({ category: initialCategory ? [initialCategory] : [], type: [], method: [], priceType: "all", maxPrice: null, minRating: null });
     setOpenDropdown(null);
     setShowSavedOnly(false);
   };
 
   const hasActiveFilters =
     searchText.trim() !== "" ||
-    filters.method.length > 0 || filters.priceType !== "all" || filters.maxPrice !== null ||
+    filters.type.length > 0 || filters.method.length > 0 || filters.priceType !== "all" || filters.maxPrice !== null ||
     filters.minRating !== null ||
     showSavedOnly;
 
@@ -1386,6 +1387,7 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
         item.type, item.method, item.description,
       ].some((field) => field?.toLowerCase().includes(q))) return false;
       if (filters.category.length  > 0 && !filters.category.includes(item.category))   return false;
+      if (filters.type.length      > 0 && !filters.type.includes(item.type))           return false;
       if (filters.method.length    > 0 && !filters.method.includes(item.method))        return false;
       if (filters.priceType === "free" && item.priceType !== "free") return false;
       if (filters.priceType === "paid" && item.priceType !== "paid") return false;
@@ -1418,6 +1420,15 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
   }, [filtered, sortBy]);
 
   const recs = useRecommendations(allItems, favorites, viewedItems, interests);
+
+  // Types that actually have items in the current category context
+  const availableTypes = useMemo(() => {
+    const base = initialCategory
+      ? allItems.filter((i) => i.category === initialCategory)
+      : allItems;
+    const typeSet = new Set(base.map((i) => i.type));
+    return CONTENT_TYPES.filter((ct) => typeSet.has(ct.type));
+  }, [allItems, initialCategory]);
 
   const headerTitle = initialSubcategory
     ? cap(initialSubcategory)
@@ -1471,6 +1482,24 @@ function HomeView({ onSelectItem, favorites, toggleFavorite, onGoBack, allItems,
         </button>
         {hasActiveFilters && <button className="clear-btn" onClick={clearAll}>Clear</button>}
       </div>
+
+      {availableTypes.length > 1 && (
+        <div className="type-filter-row">
+          {availableTypes.map((ct) => (
+            <button key={ct.type}
+              className={`type-filter-pill${filters.type.includes(ct.type) ? " active" : ""}`}
+              style={filters.type.includes(ct.type) ? { background: ct.color, color: ct.textColor } : {}}
+              onClick={() => setFilters((prev) => ({
+                ...prev,
+                type: prev.type.includes(ct.type)
+                  ? prev.type.filter((t) => t !== ct.type)
+                  : [...prev.type, ct.type],
+              }))}>
+              {ct.emoji} {ct.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <RecsStrip items={recs} onSelectItem={onSelectItem}
         favorites={favorites} toggleFavorite={toggleFavorite} />
