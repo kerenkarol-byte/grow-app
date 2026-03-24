@@ -63,10 +63,10 @@ const TYPE_ICONS = {
 // With 24h cache, each browser makes at most 5 requests per day regardless of reloads.
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_KEYS = {
-  books:    "grow-books-v11",
-  podcasts: "grow-podcasts-v11",
-  coursera: "grow-coursera-v11",
-  videos:   "grow-videos-v11",
+  books:    "grow-books-v12",
+  podcasts: "grow-podcasts-v12",
+  coursera: "grow-coursera-v12",
+  videos:   "grow-videos-v12",
 };
 
 function readCache(key, ttl = CACHE_TTL) {
@@ -450,15 +450,12 @@ function mapEventMethod(text) {
 
 // ─── Coursera API ─────────────────────────────────────────────────────────────
 // Public endpoint — no API key required.
-// Most courses are paid but include a free audit option.
-const COURSERA_QUERIES = [
-  "mindfulness stress anxiety mental health",
-  "personal development habits productivity",
-  "communication relationships emotional intelligence",
-  "leadership career management",
-  "financial literacy investing money",
-  "parenting child development",
-];
+// The courses.v1 API does not support keyword search; we fetch spread pages
+// across the full catalog (~19 k courses) and filter client-side for personal
+// growth topics.  5 pages × 100 courses = 500 sampled, ~30-60 relevant kept.
+const COURSERA_OFFSETS  = [0, 2000, 5000, 8000, 12000];
+const COURSERA_GROWTH_RE =
+  /mindful|meditat|stress|anxi|relat|communicat|leadership|career|financ|money|budget|invest|parent|child|family|productiv|habit|self.help|well.?being|emotional|mental.health|personal.develop|motivat|confiden|resilien|happiness|psychology|therapy|coaching/i;
 
 function courseraToItem(course) {
   const text = `${course.name || ""} ${course.description || ""}`;
@@ -491,10 +488,10 @@ function useCoursera() {
     let cancelled = false;
 
     Promise.all(
-      COURSERA_QUERIES.map((q) =>
+      COURSERA_OFFSETS.map((start) =>
         fetch(
-          `https://api.coursera.org/api/courses.v1?q=search&query=${encodeURIComponent(q)}` +
-          `&limit=20&fields=name,slug,description,photoUrl,domainTypes`
+          `https://api.coursera.org/api/courses.v1?start=${start}&limit=100` +
+          `&fields=name,slug,description,photoUrl`
         )
           .then((r) => r.json())
           .catch(() => ({ elements: [] }))
@@ -505,7 +502,8 @@ function useCoursera() {
       const mapped = [];
       results.forEach((res) => {
         (res.elements || []).forEach((course) => {
-          if (!seen.has(course.id) && course.name) {
+          if (!seen.has(course.id) && course.name &&
+              COURSERA_GROWTH_RE.test(`${course.name} ${course.description || ""}`)) {
             seen.add(course.id);
             mapped.push(courseraToItem(course));
           }
